@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Magnet Lab</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* Drag the big magnet around the junk drawer. Metal things leap to it,
+   wooden things ignore it. Tap the second magnet to flip its pole and
+   feel attract vs repel. */
+Kit.init('🧲', 'Magnet Lab');
+const ctx = Kit.ctx;
+
+const magnet = { x: 0, y: 0, r: 46, pid: null };
+const magnet2 = { x: 0, y: 0, vx: 0, vy: 0, r: 40, pole: 1, pid: null }; // pole: 1 attracts magnet1's tip
+let items = [];
+
+function build(){
+  magnet.x = Kit.W * 0.5; magnet.y = Kit.H * 0.3;
+  magnet2.x = Kit.W * 0.75; magnet2.y = Kit.H * 0.65; magnet2.vx = magnet2.vy = 0;
+  items = [];
+  const metal = ['📎', '🔩', '🔑', '🥄', '🧷'];
+  const wood = ['🪵', '🥢', '🧸', '🍂', '📏'];
+  for (let i = 0; i < 14; i++){
+    const isMetal = i < 8;
+    items.push({
+      e: pick(isMetal ? metal : wood), metal: isMetal,
+      x: rand(60, Kit.W - 60), y: rand(Kit.H * 0.2, Kit.H - 140),
+      vx: 0, vy: 0, ang: rand(-0.6, 0.6), stuck: false
+    });
+  }
+}
+Kit.onResize = build; build();
+
+Kit.tray([{ icon: '🔄', id: 'flip' }, { icon: '🧹', id: 'reset' }], id => {
+  if (id === 'flip'){ magnet2.pole *= -1; Sound.boing(); }
+  else { build(); Sound.ding(); }
+}, null);
+
+Kit.canvas.addEventListener('pointerdown', e => {
+  if (Math.hypot(e.clientX - magnet.x, e.clientY - magnet.y) < 70) magnet.pid = e.pointerId;
+  else if (Math.hypot(e.clientX - magnet2.x, e.clientY - magnet2.y) < 60) magnet2.pid = e.pointerId;
+});
+Kit.canvas.addEventListener('pointerup', e => {
+  if (e.pointerId === magnet.pid) magnet.pid = null;
+  if (e.pointerId === magnet2.pid) magnet2.pid = null;
+});
+
+function horseshoe(x, y, r, flip){
+  ctx.save(); ctx.translate(x, y); if (flip) ctx.rotate(Math.PI);
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#E85D5D'; ctx.lineWidth = r * 0.55;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.7, Math.PI, 0); ctx.stroke();
+  ctx.strokeStyle = '#C4CDD8'; ctx.lineWidth = r * 0.55;
+  ctx.beginPath(); ctx.moveTo(-r * 0.7, 0); ctx.lineTo(-r * 0.7, r * 0.6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(r * 0.7, 0); ctx.lineTo(r * 0.7, r * 0.6); ctx.stroke();
+  ctx.restore();
+}
+
+Kit.loop((dt, t) => {
+  // follow fingers
+  for (const m of [magnet, magnet2]){
+    if (m.pid !== null){
+      const p = Kit.pointers.get(m.pid);
+      if (p){
+        if (m === magnet2){ m.vx = (p.x - m.x) / dt * 0.2; m.vy = (p.y - m.y) / dt * 0.2; }
+        m.x = p.x; m.y = p.y;
+      }
+    }
+  }
+  // magnet2 free physics + pole force from magnet1
+  if (magnet2.pid === null){
+    const dx = magnet.x - magnet2.x, dy = magnet.y - magnet2.y;
+    const d = Math.max(50, Math.hypot(dx, dy));
+    if (d < 320){
+      const f = magnet2.pole * 90000 / (d * d);
+      magnet2.vx += (dx / d) * f * dt; magnet2.vy += (dy / d) * f * dt;
+      if (magnet2.pole < 0 && d < 150 && Math.random() < 0.1) Sound.squeak();
+    }
+    magnet2.vx *= (1 - dt * 2); magnet2.vy *= (1 - dt * 2);
+    magnet2.x = clamp(magnet2.x + magnet2.vx * dt, 50, Kit.W - 50);
+    magnet2.y = clamp(magnet2.y + magnet2.vy * dt, 90, Kit.H - 130);
+    // snap together when attracting
+    if (magnet2.pole > 0 && Math.hypot(magnet.x - magnet2.x, magnet.y - magnet2.y) < 95){
+      if (!magnet2.snapped){ magnet2.snapped = true; Sound.thud(); Sound.ding(); }
+      magnet2.x += (magnet.x - magnet2.x) * 0.3; magnet2.y += (magnet.y + 80 - magnet2.y) * 0.3;
+    } else magnet2.snapped = false;
+  }
+
+  // items
+  for (const it of items){
+    if (it.metal){
+      const dx = magnet.x - it.x, dy = magnet.y - it.y;
+      const d = Math.max(30, Math.hypot(dx, dy));
+      if (d < 240){
+        const f = 46000 / (d * d);
+        it.vx += (dx / d) * f * dt * 60; it.vy += (dy / d) * f * dt * 60;
+        if (d < 70 && !it.stuck){ it.stuck = true; Sound.click(); }
+      } else it.stuck = false;
+    }
+    it.vx *= (1 - dt * 3); it.vy *= (1 - dt * 3);
+    it.x = clamp(it.x + it.vx * dt, 30, Kit.W - 30);
+    it.y = clamp(it.y + it.vy * dt, 90, Kit.H - 120);
+  }
+
+  /* draw: junk drawer */
+  ctx.fillStyle = '#3d2b1f'; ctx.fillRect(0, 0, Kit.W, Kit.H);
+  ctx.fillStyle = '#4d3728';
+  ctx.fillRect(16, 76, Kit.W - 32, Kit.H - 190);
+  ctx.strokeStyle = '#2a1d14'; ctx.lineWidth = 10;
+  ctx.strokeRect(16, 76, Kit.W - 32, Kit.H - 190);
+
+  // field lines around magnet 1 (gentle, animated)
+  ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.lineWidth = 2;
+  for (let i = 1; i <= 3; i++){
+    ctx.beginPath();
+    ctx.arc(magnet.x, magnet.y + 20, 60 + i * 42 + Math.sin(t * 2 + i) * 5, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+  }
+  for (const it of items){
+    const wob = it.stuck ? 0 : Math.sin(t * 2 + it.x) * 0.05;
+    drawEmoji(ctx, it.e, it.x, it.y, 44, it.ang + wob);
+  }
+  horseshoe(magnet2.x, magnet2.y, magnet2.r, magnet2.pole < 0);
+  drawEmoji(ctx, magnet2.pole > 0 ? '🙂' : '😠', magnet2.x, magnet2.y - 4, 22);
+  horseshoe(magnet.x, magnet.y, magnet.r, false);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Sand &amp; Water</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* Falling-sand toy. Pour sand, water, dirt, and seeds with your finger.
+   Water soaks into dirt; seeds sprout flowers where the dirt is wet. */
+Kit.init('⏳', 'Sand & Water');
+
+const EMPTY = 0, SAND = 1, WATER = 2, DIRT = 3, WETDIRT = 4, SEED = 5, PLANT = 6, FLOWER = 7, STONE = 8;
+const COLORS = {
+  [SAND]: '#E8C05A', [WATER]: '#4AA8E8', [DIRT]: '#8B5A3C', [WETDIRT]: '#6B4128',
+  [SEED]: '#F4E04D', [PLANT]: '#4ADE80', [FLOWER]: '#FF6FA5', [STONE]: '#7A8194'
+};
+let GW = 0, GH = 0, cell = 6, grid = null, moved = null;
+function build(){
+  cell = Kit.W > 900 ? 7 : 6;
+  GW = Math.floor(Kit.W / cell); GH = Math.floor(Kit.H / cell);
+  grid = new Uint8Array(GW * GH);
+  moved = new Uint8Array(GW * GH);
+  // starter terrain: little dirt hill and stone ledge
+  for (let x = 0; x < GW; x++){
+    const hill = Math.floor(GH - 8 - Math.max(0, 14 - Math.abs(x - GW * 0.3) * 0.6));
+    for (let y = hill; y < GH; y++) grid[y * GW + x] = DIRT;
+  }
+  for (let x = Math.floor(GW * 0.55); x < Math.floor(GW * 0.85); x++)
+    grid[Math.floor(GH * 0.45) * GW + x] = STONE;
+}
+Kit.onResize = build; build();
+
+let tool = SAND, brush = 3;
+Kit.tray([
+  { icon: '🏖️', id: 'sand' }, { icon: '💧', id: 'water' }, { icon: '🟤', id: 'dirt' },
+  { icon: '🌱', id: 'seed' }, { icon: '🪨', id: 'stone' }, { icon: '🧽', id: 'erase' }, { icon: '🧹', id: 'reset' }
+], id => {
+  if (id === 'reset'){ build(); Sound.ding(); return; }
+  tool = { sand: SAND, water: WATER, dirt: DIRT, seed: SEED, stone: STONE, erase: EMPTY }[id];
+}, 'sand');
+
+const at = (x, y) => grid[y * GW + x];
+const set = (x, y, v) => { grid[y * GW + x] = v; };
+const inb = (x, y) => x >= 0 && x < GW && y >= 0 && y < GH;
+
+function paint(px, py){
+  const cx = Math.floor(px / cell), cy = Math.floor(py / cell);
+  for (let dy = -brush; dy <= brush; dy++)
+    for (let dx = -brush; dx <= brush; dx++){
+      if (dx * dx + dy * dy > brush * brush) continue;
+      const x = cx + dx, y = cy + dy;
+      if (!inb(x, y)) continue;
+      if (tool === SEED){ if (Math.random() < 0.08) set(x, y, SEED); }
+      else if (tool === EMPTY || at(x, y) === EMPTY || tool === WATER) set(x, y, tool);
+    }
+}
+
+function step(){
+  moved.fill(0);
+  const dir = Math.random() < 0.5 ? 1 : -1;
+  for (let y = GH - 2; y >= 0; y--){
+    for (let i = 0; i < GW; i++){
+      const x = dir > 0 ? i : GW - 1 - i;
+      const idx = y * GW + x;
+      const v = grid[idx];
+      if (!v || moved[idx]) continue;
+
+      if (v === SAND || v === SEED){
+        const below = at(x, y + 1);
+        if (below === EMPTY || below === WATER){
+          set(x, y, below === WATER ? WATER : EMPTY); set(x, y + 1, v); moved[(y + 1) * GW + x] = 1;
+        } else {
+          const d = Math.random() < 0.5 ? -1 : 1;
+          if (inb(x + d, y + 1) && at(x + d, y + 1) === EMPTY){
+            set(x, y, EMPTY); set(x + d, y + 1, v); moved[(y + 1) * GW + x + d] = 1;
+          } else if (v === SEED && (below === DIRT || below === WETDIRT)){
+            if (below === WETDIRT && Math.random() < 0.02){ set(x, y, PLANT); Sound.squeak(); }
+          }
+        }
+      }
+      else if (v === WATER){
+        if (inb(x, y + 1)){
+          const below = at(x, y + 1);
+          if (below === EMPTY){ set(x, y, EMPTY); set(x, y + 1, WATER); moved[(y + 1) * GW + x] = 1; continue; }
+          if (below === DIRT && Math.random() < 0.12){ set(x, y, EMPTY); set(x, y + 1, WETDIRT); continue; }
+        }
+        const d = Math.random() < 0.5 ? -1 : 1;
+        if (inb(x + d, y) && at(x + d, y) === EMPTY){ set(x, y, EMPTY); set(x + d, y, WATER); moved[y * GW + x + d] = 1; }
+        else if (inb(x - d, y) && at(x - d, y) === EMPTY){ set(x, y, EMPTY); set(x - d, y, WATER); moved[y * GW + x - d] = 1; }
+      }
+      else if (v === WETDIRT){
+        // wetness spreads slowly downward and sideways through dirt
+        if (Math.random() < 0.02){
+          const nx = x + pick([-1, 0, 1]), ny = y + pick([0, 1]);
+          if (inb(nx, ny) && at(nx, ny) === DIRT) set(nx, ny, WETDIRT);
+        }
+      }
+      else if (v === PLANT){
+        // grow upward a few cells, then bloom
+        if (Math.random() < 0.05){
+          let h = 0; while (inb(x, y - h - 1) && at(x, y - h - 1) === PLANT) h++;
+          const ty = y - 1;
+          if (inb(x, ty) && at(x, ty) === EMPTY){
+            let stalk = 0; for (let k = 1; k < 8; k++){ if (inb(x, y + k) && (at(x, y + k) === PLANT)) stalk++; else break; }
+            if (stalk < 5) set(x, ty, PLANT);
+            else if (Math.random() < 0.3){ set(x, ty, FLOWER); Sound.ding(); }
+          }
+        }
+      }
+    }
+  }
+}
+
+const ctx = Kit.ctx;
+Kit.loop(() => {
+  for (const p of Kit.pointers.values()) if (p.y < Kit.H - 100) paint(p.x, p.y);
+  step(); step();
+
+  ctx.fillStyle = '#0e1c33'; ctx.fillRect(0, 0, Kit.W, Kit.H);
+  for (let y = 0; y < GH; y++){
+    for (let x = 0; x < GW; x++){
+      const v = grid[y * GW + x];
+      if (!v) continue;
+      ctx.fillStyle = COLORS[v];
+      ctx.fillRect(x * cell, y * cell, cell, cell);
+      if (v === FLOWER){
+        ctx.fillStyle = '#FFD24A';
+        ctx.fillRect(x * cell + cell * 0.3, y * cell + cell * 0.3, cell * 0.4, cell * 0.4);
+      }
+    }
+  }
+});
+</script>
+</body>
+</html>

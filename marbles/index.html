@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Marble Run</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* Draw ramps anywhere with your finger. Pour marbles from the top.
+   Stamp bouncers and spinners. Rearranging mid-pour is encouraged. */
+Kit.init('🔵', 'Marble Run');
+
+Kit.loadMatter().then(Matter => {
+  const { Engine, Bodies, Body, Composite } = Matter;
+  const engine = Engine.create();
+  const world = engine.world;
+  const ctx = Kit.ctx;
+
+  const marbles = [], ramps = [], bumpers = [], spinners = [];
+  let tool = 'draw', drawing = null, pouring = false, pourT = 0;
+
+  let ground = null;
+  function buildBounds(){
+    if (ground) Composite.remove(world, ground);
+    ground = Bodies.rectangle(Kit.W / 2, Kit.H + 60, Kit.W * 3, 120, { isStatic: true, label: 'floor' });
+    Composite.add(world, ground);
+  }
+  Kit.onResize = buildBounds; buildBounds();
+
+  const COLORS = ['#FF6FA5', '#38BDF8', '#4ADE80', '#FFD24A', '#B79CFF'];
+
+  function addMarble(){
+    const b = Bodies.circle(rand(Kit.W * 0.15, Kit.W * 0.85), -20, 16, {
+      restitution: 0.35, friction: 0.005, density: 0.004
+    });
+    b.tint = pick(COLORS);
+    Composite.add(world, b); marbles.push(b);
+    if (marbles.length > 40){ Composite.remove(world, marbles.shift()); }
+  }
+
+  function addRamp(x1, y1, x2, y2){
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    if (len < 30) return;
+    const b = Bodies.rectangle((x1 + x2) / 2, (y1 + y2) / 2, len, 14, {
+      isStatic: true, angle: Math.atan2(y2 - y1, x2 - x1), chamfer: { radius: 7 }
+    });
+    Composite.add(world, b); ramps.push({ b, len });
+    Sound.click();
+    if (ramps.length > 24){ Composite.remove(world, ramps.shift().b); }
+  }
+
+  function addBumper(x, y){
+    const b = Bodies.circle(x, y, 26, { isStatic: true, restitution: 1.4 });
+    Composite.add(world, b); bumpers.push(b); Sound.boing();
+  }
+  function addSpinner(x, y){
+    const b = Bodies.rectangle(x, y, 130, 14, { chamfer: { radius: 7 } });
+    Body.setStatic(b, false);
+    const pin = Matter.Constraint.create({ pointA: { x, y }, bodyB: b, stiffness: 1, length: 0 });
+    Composite.add(world, [b, pin]); spinners.push(b); Sound.click();
+  }
+
+  function eraseAt(x, y){
+    const all = [...ramps.map(r => r.b), ...bumpers, ...spinners];
+    const hit = Matter.Query.point(all, { x, y })[0];
+    if (!hit) return;
+    Composite.remove(world, hit);
+    for (const arr of [bumpers, spinners]){
+      const i = arr.indexOf(hit); if (i >= 0) arr.splice(i, 1);
+    }
+    const ri = ramps.findIndex(r => r.b === hit); if (ri >= 0) ramps.splice(ri, 1);
+    Sound.crumble();
+  }
+
+  Kit.tray([
+    { icon: '✏️', id: 'draw' }, { icon: '🍄', id: 'bumper' }, { icon: '🎡', id: 'spinner' },
+    { icon: '🫗', id: 'pour' }, { icon: '🧽', id: 'erase' }, { icon: '🧹', id: 'reset' }
+  ], (id, btn) => {
+    if (id === 'pour'){ pouring = !pouring; btn.classList.toggle('active', pouring); Sound.ding(); return; }
+    if (id === 'reset'){
+      for (const m of marbles) Composite.remove(world, m);
+      for (const r of ramps) Composite.remove(world, r.b);
+      for (const b of bumpers) Composite.remove(world, b);
+      for (const s of spinners) Composite.remove(world, s);
+      marbles.length = ramps.length = bumpers.length = spinners.length = 0;
+      Sound.ding(); return;
+    }
+    tool = id;
+  }, 'draw');
+
+  Kit.canvas.addEventListener('pointerdown', e => {
+    if (e.clientY > Kit.H - 100) return;
+    if (tool === 'draw') drawing = { x1: e.clientX, y1: e.clientY, x2: e.clientX, y2: e.clientY, pid: e.pointerId };
+    else if (tool === 'bumper') addBumper(e.clientX, e.clientY);
+    else if (tool === 'spinner') addSpinner(e.clientX, e.clientY);
+    else if (tool === 'erase') eraseAt(e.clientX, e.clientY);
+  });
+  Kit.canvas.addEventListener('pointermove', e => {
+    if (drawing && e.pointerId === drawing.pid){ drawing.x2 = e.clientX; drawing.y2 = e.clientY; }
+    if (tool === 'erase' && Kit.pointers.has(e.pointerId)) eraseAt(e.clientX, e.clientY);
+  });
+  Kit.canvas.addEventListener('pointerup', e => {
+    if (drawing && e.pointerId === drawing.pid){
+      addRamp(drawing.x1, drawing.y1, drawing.x2, drawing.y2);
+      drawing = null;
+    }
+  });
+
+  Matter.Events.on(engine, 'collisionStart', ev => {
+    for (const pair of ev.pairs){
+      if (bumpers.includes(pair.bodyA) || bumpers.includes(pair.bodyB)) Sound.boing();
+    }
+  });
+
+  function drawBar(b, len, color){
+    ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
+    ctx.fillStyle = color; ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.roundRect(-len / 2, -7, len, 14, 7); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+
+  Kit.loop((dt, t) => {
+    pourT += dt;
+    if (pouring && pourT > 0.35){ pourT = 0; addMarble(); }
+    Engine.update(engine, Math.min(dt, 0.033) * 1000);
+
+    const g = ctx.createLinearGradient(0, 0, 0, Kit.H);
+    g.addColorStop(0, '#123a5e'); g.addColorStop(1, '#0a1a33');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, Kit.W, Kit.H);
+    // faint dotted grid for a workshop feel
+    ctx.fillStyle = 'rgba(255,255,255,.06)';
+    for (let y = 40; y < Kit.H; y += 60)
+      for (let x = 30; x < Kit.W; x += 60){ ctx.beginPath(); ctx.arc(x, y, 2, 0, 6.28); ctx.fill(); }
+
+    for (const r of ramps) drawBar(r.b, r.len, '#E8C05A');
+    for (const s of spinners) drawBar(s, 130, '#B79CFF');
+    for (const b of bumpers){
+      ctx.fillStyle = '#FF6FA5'; ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 26, 0, 6.28); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 10 + Math.sin(t * 6) * 2, 0, 6.28); ctx.fill();
+    }
+    for (const m of marbles){
+      ctx.fillStyle = m.tint;
+      ctx.beginPath(); ctx.arc(m.position.x, m.position.y, 16, 0, 6.28); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.7)';
+      ctx.beginPath(); ctx.arc(m.position.x - 5, m.position.y - 5, 5, 0, 6.28); ctx.fill();
+      if (m.position.y > Kit.H + 100) Body.setPosition(m, { x: rand(0, Kit.W), y: -20 });
+    }
+    if (drawing){
+      ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 12; ctx.lineCap = 'round';
+      ctx.setLineDash([2, 18]);
+      ctx.beginPath(); ctx.moveTo(drawing.x1, drawing.y1); ctx.lineTo(drawing.x2, drawing.y2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if (pouring && Math.random() < 0.2) drawEmoji(ctx, '✨', rand(0, Kit.W), 10, 16);
+  });
+});
+</script>
+</body>
+</html>

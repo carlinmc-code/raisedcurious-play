@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Tower Topple</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* Stack blocks and animals, then knock them down with the wrecking ball
+   or a good hard flick. Building and destroying are both the game. */
+Kit.init('🧱', 'Tower Topple');
+
+Kit.loadMatter().then(Matter => {
+  const { Engine, Bodies, Body, Composite, Constraint } = Matter;
+  const engine = Engine.create();
+  engine.gravity.y = 1;
+  const world = engine.world;
+
+  const SHAPES = [
+    { icon: '🟧', make: (x, y) => Bodies.rectangle(x, y, 64, 64, { restitution: 0.1 }), draw: b => box(b, 64, 64, '#FF9330') },
+    { icon: '🟦', make: (x, y) => Bodies.rectangle(x, y, 130, 34, { restitution: 0.1 }), draw: b => box(b, 130, 34, '#38BDF8') },
+    { icon: '🟢', make: (x, y) => Bodies.circle(x, y, 30, { restitution: 0.5 }), draw: b => ball(b, 30, '#4ADE80') },
+    { icon: '🐮', make: (x, y) => Bodies.rectangle(x, y, 58, 58, { restitution: 0.1 }), draw: b => glyph(b, '🐮', 62) },
+    { icon: '🐸', make: (x, y) => Bodies.circle(x, y, 28, { restitution: 0.7 }), draw: b => glyph(b, '🐸', 60) },
+    { icon: '🦆', make: (x, y) => Bodies.rectangle(x, y, 52, 52, { restitution: 0.3 }), draw: b => glyph(b, '🦆', 58) }
+  ];
+  let tool = SHAPES[0], wreck = null, wreckRope = null;
+  const items = []; // {body, draw}
+
+  function floorY(){ return Kit.H - 30; }
+  let ground = null, walls = [];
+  function buildBounds(){
+    if (ground) Composite.remove(world, [ground, ...walls]);
+    ground = Bodies.rectangle(Kit.W / 2, floorY() + 40, Kit.W * 2, 80, { isStatic: true });
+    walls = [
+      Bodies.rectangle(-30, Kit.H / 2, 60, Kit.H * 2, { isStatic: true }),
+      Bodies.rectangle(Kit.W + 30, Kit.H / 2, 60, Kit.H * 2, { isStatic: true })
+    ];
+    Composite.add(world, [ground, ...walls]);
+  }
+  Kit.onResize = buildBounds;
+  buildBounds();
+
+  function spawn(x, y){
+    const body = tool.make(x, y);
+    Composite.add(world, body);
+    items.push({ body, draw: tool.draw });
+    Sound.click();
+    if (items.length > 60){ const old = items.shift(); Composite.remove(world, old.body); }
+  }
+
+  function swingWreck(){
+    if (wreck){ Composite.remove(world, [wreck, wreckRope]); wreck = null; Sound.click(); return; }
+    const ax = Kit.W * 0.5, ay = -10;
+    wreck = Bodies.circle(Kit.W * 0.06, Kit.H * 0.25, 42, { density: 0.02, restitution: 0.2 });
+    wreckRope = Constraint.create({ pointA: { x: ax, y: ay }, bodyB: wreck, stiffness: 1,
+      length: Math.hypot(ax - wreck.position.x, ay - wreck.position.y) });
+    Composite.add(world, [wreck, wreckRope]);
+    Sound.whoosh();
+  }
+
+  function reset(){
+    for (const it of items) Composite.remove(world, it.body);
+    items.length = 0;
+    if (wreck){ Composite.remove(world, [wreck, wreckRope]); wreck = null; }
+    Sound.ding();
+  }
+
+  Kit.tray(
+    [...SHAPES.map((s, i) => ({ icon: s.icon, id: 'shape' + i })),
+     { icon: '🪨', id: 'wreck' }, { icon: '🧹', id: 'reset' }],
+    id => {
+      if (id === 'wreck') swingWreck();
+      else if (id === 'reset') reset();
+      else tool = SHAPES[Number(id.slice(5))];
+    }, 'shape0');
+
+  /* drag: grab nearest body and fling it; tap empty space: place a shape */
+  let grab = null, grabPid = null;
+  Kit.canvas.addEventListener('pointerdown', e => {
+    const found = Matter.Query.point(items.map(i => i.body).concat(wreck ? [wreck] : []), { x: e.clientX, y: e.clientY });
+    if (found.length){ grab = found[0]; grabPid = e.pointerId; }
+    else if (e.clientY < Kit.H - 100) spawn(e.clientX, e.clientY);
+  });
+  Kit.canvas.addEventListener('pointerup', e => { if (e.pointerId === grabPid){ grab = null; grabPid = null; } });
+
+  /* collision thumps */
+  Matter.Events.on(engine, 'collisionStart', ev => {
+    for (const pair of ev.pairs){
+      const speed = Math.hypot(pair.bodyA.velocity.x - pair.bodyB.velocity.x, pair.bodyA.velocity.y - pair.bodyB.velocity.y);
+      if (speed > 6) Sound.thud();
+    }
+  });
+
+  /* ---------- drawing ---------- */
+  const ctx = Kit.ctx;
+  function box(b, w, h, color){
+    ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
+    ctx.fillStyle = color; ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, 10); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  function ball(b, r, color){
+    ctx.fillStyle = color; ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(b.position.x, b.position.y, r, 0, 6.28); ctx.fill(); ctx.stroke();
+  }
+  function glyph(b, e, size){ drawEmoji(ctx, e, b.position.x, b.position.y, size, b.angle); }
+
+  Kit.loop((dt) => {
+    // move grabbed body toward finger, giving it real velocity for flicks
+    if (grab){
+      const p = Kit.pointers.get(grabPid);
+      if (p){
+        Body.setVelocity(grab, { x: (p.x - grab.position.x) * 0.35, y: (p.y - grab.position.y) * 0.35 });
+      }
+    }
+    Engine.update(engine, Math.min(dt, 0.033) * 1000);
+
+    const g = ctx.createLinearGradient(0, 0, 0, Kit.H);
+    g.addColorStop(0, '#1a2a52'); g.addColorStop(1, '#0e1530');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, Kit.W, Kit.H);
+    // grass floor
+    ctx.fillStyle = '#2f7a45'; ctx.fillRect(0, floorY(), Kit.W, Kit.H - floorY());
+    ctx.fillStyle = '#3f9e57';
+    for (let x = 0; x < Kit.W; x += 26){
+      ctx.beginPath(); ctx.arc(x, floorY(), 8, Math.PI, 0); ctx.fill();
+    }
+    for (const it of items) it.draw(it.body);
+    if (wreck){
+      ctx.strokeStyle = '#9AA3C7'; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(wreckRope.pointA.x, wreckRope.pointA.y);
+      ctx.lineTo(wreck.position.x, wreck.position.y); ctx.stroke();
+      ball(wreck, 42, '#6B7280');
+      drawEmoji(ctx, '😜', wreck.position.x, wreck.position.y, 34, wreck.angle);
+    }
+  });
+});
+</script>
+</body>
+</html>

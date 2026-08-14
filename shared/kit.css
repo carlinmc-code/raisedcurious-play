@@ -1,0 +1,24 @@
+:root{
+  --ink:#101426; --card:#151b33; --line:rgba(255,255,255,.16);
+  --sun:#FFD24A; --pink:#FF6FA5; --leaf:#4ADE80; --sky:#38BDF8; --text:#F4F6FF;
+}
+*{box-sizing:border-box; margin:0; padding:0}
+html,body{height:100%; overflow:hidden; background:var(--ink); overscroll-behavior:none;}
+body{font-family:'Baloo 2','Nunito',system-ui,sans-serif; color:var(--text);
+  user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;}
+#stage{position:fixed; inset:0; width:100%; height:100%; display:block;}
+
+.kit-home{position:fixed; top:14px; left:14px; z-index:20; width:54px; height:54px;
+  display:grid; place-items:center; font-size:26px; text-decoration:none;
+  background:rgba(16,20,38,.85); border:2px solid var(--line); border-radius:50%;}
+.kit-home:active{transform:scale(.92);}
+.kit-title{position:fixed; top:22px; left:80px; z-index:20; font-weight:800; font-size:20px;
+  background:rgba(16,20,38,.7); padding:8px 18px; border-radius:999px; pointer-events:none;}
+
+.kit-tray{position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:20;
+  display:flex; gap:10px; background:rgba(16,20,38,.85); backdrop-filter:blur(8px);
+  border:2px solid var(--line); border-radius:999px; padding:10px 14px; max-width:96vw; overflow-x:auto;}
+.kit-tool{flex:0 0 auto; width:60px; height:60px; border-radius:50%; border:3px solid transparent;
+  background:#1e2748; font-size:30px; line-height:1; cursor:pointer; display:grid; place-items:center;}
+.kit-tool:active{transform:scale(.92);}
+.kit-tool.active{border-color:var(--sun); background:#2a3560;}

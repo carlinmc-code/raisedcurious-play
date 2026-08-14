@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Tilt Maze</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+<style>
+  #tiltBtn{position:fixed; inset:0; z-index:30; display:grid; place-items:center;
+    background:rgba(10,14,32,.92); border:none; color:#F4F6FF; cursor:pointer;
+    font-family:'Baloo 2',cursive; font-weight:800; font-size:26px;}
+  #tiltBtn .big{font-size:70px; display:block; margin-bottom:12px;}
+  #tiltBtn .small{font-size:15px; color:#9AA3C7; margin-top:10px; font-weight:600;}
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<button id="tiltBtn"><span><span class="big">🌀</span>Tap to start tilting!<span class="small">Tilt the iPad to roll the marble into the cup</span></span></button>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* Tilt the device to roll the marble through the maze into the cup.
+   The iPad itself is the controller. Touch-drag steers as a fallback. */
+Kit.init('🌀', 'Tilt Maze');
+const ctx = Kit.ctx;
+
+let gx = 0, gy = 0, sensorOK = false;
+document.getElementById('tiltBtn').addEventListener('click', async e => {
+  Sound.unlock();
+  try {
+    if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission){
+      const r = await DeviceOrientationEvent.requestPermission();
+      if (r !== 'granted') throw new Error('denied');
+    }
+    window.addEventListener('deviceorientation', ev => {
+      if (ev.beta === null) return;
+      sensorOK = true;
+      gx = clamp(ev.gamma / 25, -1, 1);   // left-right
+      gy = clamp((ev.beta - 30) / 25, -1, 1); // front-back, 30deg = comfy hold
+    });
+  } catch (err){ /* fall through to touch steering */ }
+  e.currentTarget.remove();
+  Sound.ding();
+});
+
+/* three hand-drawn layouts as wall rectangles in unit coords [x,y,w,h] */
+const LAYOUTS = [
+  { walls: [[0.2,0,0.04,0.65],[0.5,0.35,0.04,0.65],[0.78,0,0.04,0.6]], cup: [0.9,0.85], start: [0.08,0.12] },
+  { walls: [[0,0.3,0.65,0.05],[0.35,0.62,0.65,0.05],[0.62,0.3,0.05,0.16]], cup: [0.1,0.88], start: [0.08,0.1] },
+  { walls: [[0.25,0.2,0.5,0.05],[0.25,0.2,0.05,0.42],[0.45,0.45,0.05,0.4],[0.7,0.2,0.05,0.42]], cup: [0.5,0.32], start: [0.08,0.85] }
+];
+let level = 0, marble = { x: 0, y: 0, vx: 0, vy: 0, r: 22 }, win = 0, confetti = [];
+
+function loadLevel(i){
+  level = (i + LAYOUTS.length) % LAYOUTS.length;
+  const L = LAYOUTS[level];
+  marble.x = L.start[0] * Kit.W; marble.y = L.start[1] * Kit.H;
+  marble.vx = marble.vy = 0; win = 0;
+  Sound.ding();
+}
+Kit.onResize = () => loadLevel(level);
+loadLevel(0);
+
+Kit.tray([{ icon: '⏭️', id: 'next' }, { icon: '🔁', id: 'again' }],
+  id => loadLevel(id === 'next' ? level + 1 : level), null);
+
+function wallRects(){
+  return LAYOUTS[level].walls.map(w => ({ x: w[0] * Kit.W, y: w[1] * Kit.H, w: w[2] * Kit.W, h: w[3] * Kit.H }));
+}
+
+Kit.loop((dt, t) => {
+  const L = LAYOUTS[level];
+  // steering: sensors if granted, else drag anywhere
+  let ax = gx, ay = gy;
+  const p = Kit.firstPointer();
+  if (!sensorOK && p){ ax = clamp((p.x - Kit.W / 2) / (Kit.W / 3), -1, 1); ay = clamp((p.y - Kit.H / 2) / (Kit.H / 3), -1, 1); }
+
+  if (win <= 0){
+    marble.vx += ax * 1400 * dt; marble.vy += ay * 1400 * dt;
+    marble.vx *= (1 - dt * 1.2); marble.vy *= (1 - dt * 1.2);
+    marble.x += marble.vx * dt; marble.y += marble.vy * dt;
+    // bounds
+    if (marble.x < marble.r){ marble.x = marble.r; marble.vx *= -0.5; Sound.click(); }
+    if (marble.x > Kit.W - marble.r){ marble.x = Kit.W - marble.r; marble.vx *= -0.5; Sound.click(); }
+    if (marble.y < marble.r + 70){ marble.y = marble.r + 70; marble.vy *= -0.5; Sound.click(); }
+    if (marble.y > Kit.H - marble.r - 90){ marble.y = Kit.H - marble.r - 90; marble.vy *= -0.5; Sound.click(); }
+    // walls: simple AABB push-out
+    for (const w of wallRects()){
+      const nx = clamp(marble.x, w.x, w.x + w.w), ny = clamp(marble.y, w.y, w.y + w.h);
+      const dx = marble.x - nx, dy = marble.y - ny, d = Math.hypot(dx, dy);
+      if (d < marble.r && d > 0){
+        const push = (marble.r - d);
+        marble.x += (dx / d) * push; marble.y += (dy / d) * push;
+        if (Math.abs(dx) > Math.abs(dy)) marble.vx *= -0.5; else marble.vy *= -0.5;
+        if (Math.hypot(marble.vx, marble.vy) > 120) Sound.thud();
+      }
+    }
+    // cup check
+    const cx = L.cup[0] * Kit.W, cy = L.cup[1] * Kit.H;
+    if (Math.hypot(marble.x - cx, marble.y - cy) < 34){
+      win = 2.4; Sound.ding(); Sound.boing();
+      for (let k = 0; k < 30; k++)
+        confetti.push({ x: cx, y: cy, vx: rand(-200, 200), vy: rand(-380, -80),
+          c: pick(['#FFD24A', '#FF6FA5', '#38BDF8', '#4ADE80']), a: 1 });
+    }
+  } else {
+    win -= dt;
+    if (win <= 0) loadLevel(level + 1);
+  }
+
+  /* draw */
+  const g = ctx.createLinearGradient(0, 0, Kit.W, Kit.H);
+  g.addColorStop(0, '#2a1b52'); g.addColorStop(1, '#141033');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, Kit.W, Kit.H);
+  // tilt indicator: the whole board shadow leans with your tilt
+  ctx.save();
+  ctx.translate(ax * 8, ay * 8);
+  ctx.fillStyle = 'rgba(255,255,255,.05)';
+  ctx.fillRect(20, 80, Kit.W - 40, Kit.H - 180);
+  ctx.restore();
+
+  for (const w of wallRects()){
+    ctx.fillStyle = '#8B6FE8'; ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.roundRect(w.x, w.y, w.w, w.h, 10); ctx.fill(); ctx.stroke();
+  }
+  const cx = L.cup[0] * Kit.W, cy = L.cup[1] * Kit.H;
+  ctx.fillStyle = 'rgba(255,210,74,.25)';
+  ctx.beginPath(); ctx.arc(cx, cy, 40 + Math.sin(t * 4) * 4, 0, 6.28); ctx.fill();
+  drawEmoji(ctx, '🏆', cx, cy, 52);
+
+  // marble with rolling highlight
+  ctx.fillStyle = '#38BDF8';
+  ctx.beginPath(); ctx.arc(marble.x, marble.y, marble.r, 0, 6.28); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.8)';
+  ctx.beginPath(); ctx.arc(marble.x - marble.vx * 0.02 - 6, marble.y - marble.vy * 0.02 - 6, 7, 0, 6.28); ctx.fill();
+
+  for (let i = confetti.length - 1; i >= 0; i--){
+    const c = confetti[i];
+    c.vy += 700 * dt; c.x += c.vx * dt; c.y += c.vy * dt; c.a -= dt * 0.5;
+    if (c.a <= 0){ confetti.splice(i, 1); continue; }
+    ctx.fillStyle = c.c; ctx.globalAlpha = c.a;
+    ctx.fillRect(c.x, c.y, 8, 8);
+    ctx.globalAlpha = 1;
+  }
+});
+</script>
+</body>
+</html>

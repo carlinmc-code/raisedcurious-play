@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Water Pipes</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* Turn on the faucet and route the water: drag ramps to steer the stream,
+   spin the waterwheel, fill the bucket, soak the duck. */
+Kit.init('🚰', 'Water Pipes');
+
+Kit.loadMatter().then(Matter => {
+  const { Engine, Bodies, Body, Composite } = Matter;
+  const engine = Engine.create();
+  const world = engine.world;
+  const ctx = Kit.ctx;
+
+  let drops = [], ramps = [], wheel = null, wheelPin = null, faucetOn = true;
+  let bucket = { x: 0, y: 0, fill: 0 }, duck = { x: 0, y: 0, wet: 0, bob: 0 };
+  let ground = null, bucketWalls = [];
+
+  function build(){
+    Composite.clear(world, false);
+    drops = []; ramps = [];
+    ground = Bodies.rectangle(Kit.W / 2, Kit.H + 40, Kit.W * 3, 80, { isStatic: true });
+    Composite.add(world, ground);
+    // two starter ramps the kid can drag
+    addRamp(Kit.W * 0.35, Kit.H * 0.32, -0.25);
+    addRamp(Kit.W * 0.55, Kit.H * 0.55, 0.3);
+    // waterwheel: rotating cross
+    const wx = Kit.W * 0.42, wy = Kit.H * 0.72;
+    const a = Bodies.rectangle(wx, wy, 150, 16, { chamfer: { radius: 8 } });
+    const b = Bodies.rectangle(wx, wy, 16, 150, { chamfer: { radius: 8 } });
+    wheel = Body.create({ parts: [a, b], frictionAir: 0.02 });
+    wheelPin = Matter.Constraint.create({ pointA: { x: wx, y: wy }, bodyB: wheel, stiffness: 1, length: 0 });
+    Composite.add(world, [wheel, wheelPin]);
+    // bucket on the floor right side
+    bucket = { x: Kit.W * 0.82, y: Kit.H - 60, fill: 0 };
+    bucketWalls = [
+      Bodies.rectangle(bucket.x - 55, bucket.y - 10, 12, 110, { isStatic: true }),
+      Bodies.rectangle(bucket.x + 55, bucket.y - 10, 12, 110, { isStatic: true })
+    ];
+    Composite.add(world, bucketWalls);
+    duck = { x: Kit.W * 0.62, y: Kit.H - 44, wet: 0, bob: rand(0, 6) };
+  }
+
+  function addRamp(x, y, angle){
+    const b = Bodies.rectangle(x, y, 170, 16, { isStatic: true, angle, chamfer: { radius: 8 } });
+    Composite.add(world, b); ramps.push(b);
+  }
+
+  Kit.onResize = build; build();
+
+  Kit.tray([
+    { icon: '🚰', id: 'faucet' }, { icon: '📏', id: 'ramp' }, { icon: '🧹', id: 'reset' }
+  ], (id, btn) => {
+    if (id === 'faucet'){ faucetOn = !faucetOn; btn.classList.toggle('active', faucetOn); Sound.click(); }
+    else if (id === 'ramp'){ addRamp(Kit.W / 2, Kit.H / 2, rand(-0.3, 0.3)); Sound.click(); }
+    else { build(); Sound.ding(); }
+  }, 'faucet');
+
+  /* drag ramps around; second finger twist not needed: drag near an end rotates */
+  let grab = null;
+  Kit.canvas.addEventListener('pointerdown', e => {
+    const hit = Matter.Query.point(ramps, { x: e.clientX, y: e.clientY })[0];
+    if (hit){
+      const local = Math.hypot(e.clientX - hit.position.x, e.clientY - hit.position.y);
+      grab = { body: hit, pid: e.pointerId, rotate: local > 55 };
+    }
+  });
+  Kit.canvas.addEventListener('pointerup', e => { if (grab && grab.pid === e.pointerId) grab = null; });
+
+  let dropT = 0, wheelSpin = 0;
+  Kit.loop((dt, t) => {
+    if (grab){
+      const p = Kit.pointers.get(grab.pid);
+      if (p){
+        if (grab.rotate){
+          Body.setAngle(grab.body, Math.atan2(p.y - grab.body.position.y, p.x - grab.body.position.x));
+        } else {
+          Body.setPosition(grab.body, { x: p.x, y: p.y });
+        }
+      }
+    }
+    // faucet emits water drops (small bouncy circles)
+    dropT += dt;
+    if (faucetOn && dropT > 0.045){
+      dropT = 0;
+      const d = Bodies.circle(Kit.W * 0.18 + rand(-4, 4), 90, 7, {
+        restitution: 0.2, friction: 0.001, frictionAir: 0.001, density: 0.002
+      });
+      Composite.add(world, d); drops.push(d);
+      if (drops.length > 130) Composite.remove(world, drops.shift());
+    }
+    Engine.update(engine, Math.min(dt, 0.033) * 1000);
+
+    // wheel spin sound + sparkle when moving fast
+    wheelSpin = wheelSpin * 0.9 + Math.abs(wheel.angularVelocity) * 0.1;
+    if (wheelSpin > 0.12 && Math.random() < 0.06) Sound.squeak();
+
+    // bucket fill + duck wet checks
+    for (let i = drops.length - 1; i >= 0; i--){
+      const d = drops[i];
+      if (Math.abs(d.position.x - bucket.x) < 45 && d.position.y > bucket.y - 45 && d.position.y < bucket.y + 40){
+        Composite.remove(world, d); drops.splice(i, 1);
+        if (bucket.fill < 1){ bucket.fill += 0.012; if (Math.random() < 0.2) Sound.splash(); }
+        if (bucket.fill >= 1 && !bucket.done){ bucket.done = true; Sound.ding(); Sound.boing(); }
+        continue;
+      }
+      if (Math.hypot(d.position.x - duck.x, d.position.y - duck.y) < 40){
+        duck.wet = 1; if (Math.random() < 0.15) Sound.squeak();
+      }
+      if (d.position.y > Kit.H + 60){ Composite.remove(world, d); drops.splice(i, 1); }
+    }
+    duck.wet = Math.max(0, duck.wet - dt * 0.4);
+
+    /* ---------- draw ---------- */
+    const g = ctx.createLinearGradient(0, 0, 0, Kit.H);
+    g.addColorStop(0, '#173a5c'); g.addColorStop(1, '#0c1d33');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, Kit.W, Kit.H);
+    ctx.fillStyle = '#2a3b52'; ctx.fillRect(0, Kit.H - 24, Kit.W, 24);
+
+    // faucet
+    ctx.fillStyle = '#C4CDD8'; ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.roundRect(Kit.W * 0.18 - 40, 40, 80, 26, 8); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(Kit.W * 0.18 - 12, 60, 24, 30, 6); ctx.fill(); ctx.stroke();
+    drawEmoji(ctx, faucetOn ? '💧' : '🚫', Kit.W * 0.18 + 52, 52, 26);
+
+    for (const r of ramps){
+      ctx.save(); ctx.translate(r.position.x, r.position.y); ctx.rotate(r.angle);
+      ctx.fillStyle = '#E8C05A'; ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.roundRect(-85, -8, 170, 16, 8); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#B8933C';
+      ctx.beginPath(); ctx.arc(70, 0, 7, 0, 6.28); ctx.fill(); // rotate handle hint
+      ctx.restore();
+    }
+    // wheel
+    ctx.save(); ctx.translate(wheel.position.x, wheel.position.y); ctx.rotate(wheel.angle);
+    ctx.fillStyle = '#B79CFF'; ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 3;
+    for (const rot of [0, Math.PI / 2]){
+      ctx.save(); ctx.rotate(rot);
+      ctx.beginPath(); ctx.roundRect(-75, -8, 150, 16, 8); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.fillStyle = '#8B6FE8'; ctx.beginPath(); ctx.arc(0, 0, 14, 0, 6.28); ctx.fill();
+    ctx.restore();
+
+    // water drops
+    ctx.fillStyle = '#6EC6FF';
+    for (const d of drops){
+      ctx.beginPath(); ctx.arc(d.position.x, d.position.y, 7, 0, 6.28); ctx.fill();
+    }
+    // bucket with fill level
+    ctx.fillStyle = '#7A8194';
+    ctx.beginPath(); ctx.roundRect(bucket.x - 55, bucket.y - 55, 110, 100, 8); ctx.fill();
+    ctx.fillStyle = '#4AA8E8';
+    const fh = 90 * bucket.fill;
+    ctx.fillRect(bucket.x - 48, bucket.y + 40 - fh, 96, fh);
+    if (bucket.fill >= 1) drawEmoji(ctx, '🌟', bucket.x, bucket.y - 80 + Math.sin(t * 4) * 6, 40);
+    // duck
+    duck.bob += dt;
+    drawEmoji(ctx, '🦆', duck.x, duck.y + Math.sin(duck.bob * 3) * 4, 52, duck.wet > 0 ? Math.sin(t * 20) * 0.2 : 0);
+    if (duck.wet > 0 && Math.random() < 0.2) drawEmoji(ctx, '💦', duck.x + rand(-30, 30), duck.y - 30, 18);
+  });
+});
+</script>
+</body>
+</html>

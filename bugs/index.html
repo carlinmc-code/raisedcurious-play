@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Bug Garden</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* Drop crumbs and watch the ants find them and carry them home.
+   Dig tunnels in the dirt with your finger. Slow and calm on purpose. */
+Kit.init('🐜', 'Bug Garden');
+const ctx = Kit.ctx;
+
+let ants = [], crumbs = [], flowers = [], dirtCell = 10, DG = null, DW = 0, DH = 0, dirtTop = 0;
+const nest = { x: 0, y: 0 };
+let tool = 'crumb';
+
+function build(){
+  dirtTop = Math.floor(Kit.H * 0.55);
+  DW = Math.ceil(Kit.W / dirtCell); DH = Math.ceil((Kit.H - dirtTop) / dirtCell);
+  DG = new Uint8Array(DW * DH).fill(1);   // 1 = dirt, 0 = tunnel
+  nest.x = Kit.W * 0.5; nest.y = dirtTop + 30;
+  // starter chamber
+  digAt(nest.x, nest.y, 34);
+  ants = Array.from({ length: 14 }, () => ({
+    x: nest.x + rand(-20, 20), y: nest.y + rand(-10, 10),
+    a: rand(0, 6.28), carrying: false, speed: rand(26, 44), wob: rand(0, 6)
+  }));
+  crumbs = []; flowers = [];
+}
+function digAt(px, py, r){
+  const cx = Math.floor(px / dirtCell), cy = Math.floor((py - dirtTop) / dirtCell), cr = Math.ceil(r / dirtCell);
+  for (let dy = -cr; dy <= cr; dy++)
+    for (let dx = -cr; dx <= cr; dx++){
+      if (dx * dx + dy * dy > cr * cr) continue;
+      const x = cx + dx, y = cy + dy;
+      if (x >= 0 && x < DW && y >= 0 && y < DH) DG[y * DW + x] = 0;
+    }
+}
+const isDug = (px, py) => {
+  if (py < dirtTop) return true;
+  const x = Math.floor(px / dirtCell), y = Math.floor((py - dirtTop) / dirtCell);
+  if (x < 0 || x >= DW || y < 0 || y >= DH) return false;
+  return DG[y * DW + x] === 0;
+};
+Kit.onResize = build; build();
+
+Kit.tray([
+  { icon: '🍪', id: 'crumb' }, { icon: '⛏️', id: 'dig' }, { icon: '🌼', id: 'flower' }, { icon: '🧹', id: 'reset' }
+], id => {
+  if (id === 'reset'){ build(); Sound.ding(); return; }
+  tool = id;
+}, 'crumb');
+
+Kit.canvas.addEventListener('pointerdown', e => {
+  if (e.clientY > Kit.H - 100) return;
+  if (tool === 'crumb' && e.clientY < dirtTop){
+    crumbs.push({ x: e.clientX, y: e.clientY, amount: 6 });
+    Sound.click();
+  } else if (tool === 'flower' && e.clientY < dirtTop){
+    flowers.push({ x: e.clientX, y: Math.min(e.clientY, dirtTop - 10), e: pick(['🌼', '🌷', '🍄', '🌿']), grow: 0 });
+    Sound.ding();
+  }
+});
+Kit.canvas.addEventListener('pointermove', e => {
+  if (tool === 'dig' && Kit.pointers.has(e.pointerId) && e.clientY >= dirtTop){
+    digAt(e.clientX, e.clientY, 22);
+    if (Math.random() < 0.15) Sound.crumble();
+  }
+});
+
+Kit.loop((dt, t) => {
+  /* ants */
+  for (const ant of ants){
+    let target = null;
+    if (ant.carrying) target = nest;
+    else {
+      let bd = 1e9;
+      for (const c of crumbs){
+        const d = (c.x - ant.x) ** 2 + (c.y - ant.y) ** 2;
+        if (d < bd){ bd = d; target = c; }
+      }
+    }
+    if (target){
+      const want = Math.atan2(target.y - ant.y, target.x - ant.x);
+      let diff = want - ant.a;
+      while (diff > Math.PI) diff -= 6.283; while (diff < -Math.PI) diff += 6.283;
+      ant.a += diff * dt * 2 + rand(-0.5, 0.5) * dt;
+    } else {
+      ant.a += rand(-1.6, 1.6) * dt;
+    }
+    const nx = ant.x + Math.cos(ant.a) * ant.speed * dt;
+    const ny = ant.y + Math.sin(ant.a) * ant.speed * dt;
+    // ants walk above ground freely, underground only in tunnels
+    if (nx > 8 && nx < Kit.W - 8 && ny > 60 && ny < Kit.H - 40 && isDug(nx, ny)){
+      ant.x = nx; ant.y = ny;
+    } else {
+      ant.a += Math.PI * rand(0.4, 0.7);
+    }
+    // pick up / deliver
+    if (!ant.carrying){
+      for (const c of crumbs){
+        if (Math.hypot(c.x - ant.x, c.y - ant.y) < 14){
+          ant.carrying = true; c.amount--; Sound.click();
+          break;
+        }
+      }
+    } else if (Math.hypot(nest.x - ant.x, nest.y - ant.y) < 22){
+      ant.carrying = false;
+      if (Math.random() < 0.5) Sound.squeak();
+    }
+  }
+  for (let i = crumbs.length - 1; i >= 0; i--)
+    if (crumbs[i].amount <= 0) crumbs.splice(i, 1);
+  for (const f of flowers) f.grow = Math.min(1, f.grow + dt * 0.8);
+
+  /* draw */
+  const g = ctx.createLinearGradient(0, 0, 0, dirtTop);
+  g.addColorStop(0, '#8ED0F5'); g.addColorStop(1, '#C8E89B');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, Kit.W, dirtTop);
+  drawEmoji(ctx, '🌞', Kit.W * 0.86, 90, 70, t * 0.05);
+  ctx.fillStyle = '#7FBF4D'; ctx.fillRect(0, dirtTop - 12, Kit.W, 12);
+
+  // dirt with tunnels
+  for (let y = 0; y < DH; y++){
+    for (let x = 0; x < DW; x++){
+      if (DG[y * DW + x]){
+        ctx.fillStyle = (x + y) % 2 ? '#8B5A3C' : '#84543a';
+        ctx.fillRect(x * dirtCell, dirtTop + y * dirtCell, dirtCell, dirtCell);
+      } else {
+        ctx.fillStyle = '#4a2e1d';
+        ctx.fillRect(x * dirtCell, dirtTop + y * dirtCell, dirtCell, dirtCell);
+      }
+    }
+  }
+  drawEmoji(ctx, '⛰️', nest.x, dirtTop - 16, 44);
+
+  for (const f of flowers) drawEmoji(ctx, f.e, f.x, f.y, 16 + f.grow * 30);
+  for (const c of crumbs) drawEmoji(ctx, '🍪', c.x, c.y, 14 + c.amount * 3);
+
+  for (const ant of ants){
+    const wig = Math.sin(t * 14 + ant.wob) * 0.15;
+    ctx.save(); ctx.translate(ant.x, ant.y); ctx.rotate(ant.a + wig);
+    ctx.fillStyle = '#2a1a10';
+    ctx.beginPath(); ctx.arc(-5, 0, 4.5, 0, 6.28); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, 6.28); ctx.fill();
+    ctx.beginPath(); ctx.arc(5, 0, 3, 0, 6.28); ctx.fill();
+    ctx.strokeStyle = '#2a1a10'; ctx.lineWidth = 1.4;
+    for (const s of [-1, 1]){
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(3, s * 6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(-6, s * 6); ctx.stroke();
+    }
+    if (ant.carrying) drawEmoji(ctx, '🍪', 9, 0, 11);
+    ctx.restore();
+  }
+});
+</script>
+</body>
+</html>

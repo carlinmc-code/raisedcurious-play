@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Balance Zoo</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* Put animals on the seesaw. Big animals are HEAVY. How many mice does
+   it take to balance an elephant? The seesaw smiles when it's level. */
+Kit.init('⚖️', 'Balance Zoo');
+
+Kit.loadMatter().then(Matter => {
+  const { Engine, Bodies, Body, Composite, Constraint } = Matter;
+  const engine = Engine.create();
+  const world = engine.world;
+  const ctx = Kit.ctx;
+
+  const ANIMALS = [
+    { e: '🐭', size: 40, density: 0.002 },
+    { e: '🐱', size: 54, density: 0.004 },
+    { e: '🐶', size: 60, density: 0.006 },
+    { e: '🐷', size: 68, density: 0.010 },
+    { e: '🐮', size: 78, density: 0.016 },
+    { e: '🐘', size: 96, density: 0.030 }
+  ];
+  let tool = ANIMALS[0];
+  let plank = null, pivot = null, ground = null, animals = [];
+  let happy = 0, wasLevel = false;
+
+  function build(){
+    Composite.clear(world, false);
+    animals = [];
+    const cx = Kit.W / 2, cy = Kit.H * 0.62;
+    ground = Bodies.rectangle(cx, Kit.H + 40, Kit.W * 3, 80, { isStatic: true });
+    plank = Bodies.rectangle(cx, cy, Math.min(Kit.W * 0.7, 640), 22, { chamfer: { radius: 10 }, friction: 0.9 });
+    pivot = Constraint.create({ pointA: { x: cx, y: cy }, bodyB: plank, stiffness: 1, length: 0 });
+    Composite.add(world, [ground, plank, pivot]);
+  }
+  Kit.onResize = build; build();
+
+  Kit.tray([...ANIMALS.map((a, i) => ({ icon: a.e, id: 'a' + i })), { icon: '🧹', id: 'reset' }],
+    id => {
+      if (id === 'reset'){ build(); Sound.ding(); return; }
+      tool = ANIMALS[Number(id.slice(1))];
+    }, 'a0');
+
+  Kit.canvas.addEventListener('pointerdown', e => {
+    if (e.clientY > Kit.H - 100) return;
+    // grab an existing animal to remove it (toss it away)
+    const hit = Matter.Query.point(animals.map(a => a.body), { x: e.clientX, y: e.clientY })[0];
+    if (hit){
+      const i = animals.findIndex(a => a.body === hit);
+      Composite.remove(world, hit); animals.splice(i, 1); Sound.pop();
+      return;
+    }
+    const spec = tool;
+    const b = Bodies.circle(e.clientX, Math.min(e.clientY, Kit.H * 0.35), spec.size * 0.42, {
+      density: spec.density, friction: 0.95, restitution: 0.05
+    });
+    Composite.add(world, b);
+    animals.push({ body: b, spec });
+    Sound.click();
+    if (animals.length > 16){ Composite.remove(world, animals.shift().body); }
+  });
+
+  Kit.loop((dt, t) => {
+    Engine.update(engine, Math.min(dt, 0.033) * 1000);
+    // toss animals that rolled off into the void back into oblivion
+    for (let i = animals.length - 1; i >= 0; i--){
+      const b = animals[i].body;
+      if (b.position.y > Kit.H + 120){ Composite.remove(world, b); animals.splice(i, 1); }
+    }
+    const level = Math.abs(plank.angle) < 0.045 && animals.length > 1;
+    happy += ((level ? 1 : 0) - happy) * dt * 3;
+    if (level && !wasLevel){ Sound.ding(); Sound.boing(); }
+    wasLevel = level;
+
+    const g = ctx.createLinearGradient(0, 0, 0, Kit.H);
+    g.addColorStop(0, '#9BE8A8'); g.addColorStop(0.6, '#CBEFDD'); g.addColorStop(1, '#8FC45A');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, Kit.W, Kit.H);
+    drawEmoji(ctx, '🌤️', Kit.W * 0.85, Kit.H * 0.12, 76);
+    drawEmoji(ctx, '🌳', Kit.W * 0.08, Kit.H * 0.32, 130);
+
+    // pivot triangle with a face that smiles when level
+    const cx = pivot.pointA.x, cy = pivot.pointA.y;
+    ctx.fillStyle = '#E8A05A'; ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(cx - 55, Kit.H * 0.62 + 120); ctx.lineTo(cx, cy);
+    ctx.lineTo(cx + 55, Kit.H * 0.62 + 120); ctx.closePath(); ctx.fill(); ctx.stroke();
+    drawEmoji(ctx, happy > 0.5 ? '😄' : '😐', cx, cy + 58, 40);
+    if (happy > 0.5 && Math.random() < 0.15)
+      drawEmoji(ctx, '✨', cx + rand(-90, 90), cy - rand(20, 90), 18);
+
+    // plank
+    ctx.save(); ctx.translate(plank.position.x, plank.position.y); ctx.rotate(plank.angle);
+    const pw = Math.min(Kit.W * 0.7, 640);
+    ctx.fillStyle = '#C48A4A'; ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.roundRect(-pw / 2, -11, pw, 22, 11); ctx.fill(); ctx.stroke();
+    ctx.restore();
+
+    for (const a of animals)
+      drawEmoji(ctx, a.spec.e, a.body.position.x, a.body.position.y, a.spec.size, a.body.angle);
+  });
+});
+</script>
+</body>
+</html>

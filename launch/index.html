@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Launch Lab</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* Pull the slingshot back, let go, watch the arc. Knock over the can
+   pyramid, pop the balloons. Pull further = fly further. */
+Kit.init('🚀', 'Launch Lab');
+
+Kit.loadMatter().then(Matter => {
+  const { Engine, Bodies, Body, Composite } = Matter;
+  const engine = Engine.create();
+  const world = engine.world;
+  const ctx = Kit.ctx;
+
+  let cans = [], balls = [], balloons = [], ground;
+  const sling = { x: 0, y: 0, loaded: null, pull: null };
+  const AMMO = ['⚽', '🏀', '🎾', '🥎'];
+  let ammoIdx = 0, trailDots = [];
+
+  function floorY(){ return Kit.H - 46; }
+
+  function buildWorld(){
+    Composite.clear(world, false);
+    balls = []; balloons = [];
+    ground = Bodies.rectangle(Kit.W / 2, floorY() + 40, Kit.W * 3, 80, { isStatic: true });
+    Composite.add(world, ground);
+    sling.x = Kit.W * 0.16; sling.y = floorY() - 110;
+    // can pyramid on the right
+    cans = [];
+    const baseX = Kit.W * 0.72, rows = 4, cw = 40, ch = 54;
+    for (let r = 0; r < rows; r++){
+      for (let c = 0; c <= r; c++){
+        const b = Bodies.rectangle(baseX + (c - r / 2) * (cw + 4) + rows * 10, floorY() - ch / 2 - (rows - 1 - r) * ch, cw, ch, { restitution: 0.1 });
+        cans.push(b);
+      }
+    }
+    Composite.add(world, cans);
+    // balloons on strings
+    for (let i = 0; i < 4; i++){
+      balloons.push({ x: Kit.W * (0.4 + i * 0.14), y: rand(Kit.H * 0.12, Kit.H * 0.3),
+        ph: rand(0, 6), c: pick(['#FF6FA5', '#38BDF8', '#4ADE80', '#FFD24A']), pop: 0 });
+    }
+    loadBall();
+  }
+
+  function loadBall(){
+    sling.loaded = { icon: AMMO[ammoIdx % AMMO.length] };
+    ammoIdx++;
+  }
+
+  function fire(px, py){
+    const dx = sling.x - px, dy = sling.y - py;
+    const b = Bodies.circle(px, py, 20, { restitution: 0.5, density: 0.008, friction: 0.01 });
+    b.icon = sling.loaded.icon;
+    Body.setVelocity(b, { x: dx * 0.14, y: dy * 0.14 });
+    Composite.add(world, b); balls.push(b);
+    if (balls.length > 8) Composite.remove(world, balls.shift());
+    Sound.whoosh(); trailDots = [];
+    sling.loaded = null;
+    setTimeout(loadBall, 700);
+  }
+
+  Kit.onResize = buildWorld; buildWorld();
+
+  Kit.tray([{ icon: '🧹', id: 'reset' }], () => { buildWorld(); Sound.ding(); }, null);
+
+  Kit.canvas.addEventListener('pointerdown', e => {
+    if (!sling.loaded) return;
+    if (Math.hypot(e.clientX - sling.x, e.clientY - sling.y) < 140)
+      sling.pull = { x: e.clientX, y: e.clientY, pid: e.pointerId };
+  });
+  Kit.canvas.addEventListener('pointermove', e => {
+    if (sling.pull && e.pointerId === sling.pull.pid){
+      const maxR = 150;
+      let dx = e.clientX - sling.x, dy = e.clientY - sling.y;
+      const d = Math.hypot(dx, dy);
+      if (d > maxR){ dx *= maxR / d; dy *= maxR / d; }
+      sling.pull.x = sling.x + dx; sling.pull.y = sling.y + dy;
+    }
+  });
+  Kit.canvas.addEventListener('pointerup', e => {
+    if (sling.pull && e.pointerId === sling.pull.pid){
+      if (Math.hypot(sling.pull.x - sling.x, sling.pull.y - sling.y) > 24) fire(sling.pull.x, sling.pull.y);
+      sling.pull = null;
+    }
+  });
+
+  Matter.Events.on(engine, 'collisionStart', ev => {
+    for (const pair of ev.pairs){
+      const s = Math.hypot(pair.bodyA.velocity.x - pair.bodyB.velocity.x, pair.bodyA.velocity.y - pair.bodyB.velocity.y);
+      if (s > 7) Sound.thud();
+    }
+  });
+
+  Kit.loop((dt, t) => {
+    Engine.update(engine, Math.min(dt, 0.033) * 1000);
+
+    const g = ctx.createLinearGradient(0, 0, 0, Kit.H);
+    g.addColorStop(0, '#7CC4EE'); g.addColorStop(0.7, '#A8DCF5'); g.addColorStop(1, '#CBEFDD');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, Kit.W, Kit.H);
+    drawEmoji(ctx, '☁️', Kit.W * 0.25 + Math.sin(t * 0.2) * 30, Kit.H * 0.15, 70);
+    drawEmoji(ctx, '☁️', Kit.W * 0.7 + Math.sin(t * 0.15 + 2) * 40, Kit.H * 0.1, 56);
+    ctx.fillStyle = '#3f9e57'; ctx.fillRect(0, floorY(), Kit.W, Kit.H - floorY());
+
+    // balloons bob; pop on ball contact
+    for (const bl of balloons){
+      if (bl.pop > 0){ bl.pop -= dt; continue; }
+      bl.yy = bl.y + Math.sin(t * 1.4 + bl.ph) * 10;
+      ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(bl.x, bl.yy + 26); ctx.lineTo(bl.x, bl.yy + 70); ctx.stroke();
+      ctx.fillStyle = bl.c;
+      ctx.beginPath(); ctx.ellipse(bl.x, bl.yy, 24, 30, 0, 0, 6.28); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.5)';
+      ctx.beginPath(); ctx.arc(bl.x - 8, bl.yy - 10, 7, 0, 6.28); ctx.fill();
+      for (const b of balls){
+        if (Math.hypot(b.position.x - bl.x, b.position.y - bl.yy) < 44){
+          bl.pop = 6; Sound.pop();
+          bl.y = rand(Kit.H * 0.1, Kit.H * 0.3); bl.x = rand(Kit.W * 0.35, Kit.W * 0.9);
+        }
+      }
+    }
+
+    // cans
+    for (const c of cans){
+      ctx.save(); ctx.translate(c.position.x, c.position.y); ctx.rotate(c.angle);
+      ctx.fillStyle = '#C4CDD8'; ctx.strokeStyle = '#7A8194'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.roundRect(-20, -27, 40, 54, 6); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#FF6FA5'; ctx.fillRect(-20, -8, 40, 16);
+      ctx.restore();
+    }
+    // flying balls + arc trail
+    for (const b of balls){
+      if (Math.random() < 0.5) trailDots.push({ x: b.position.x, y: b.position.y, a: 1 });
+      drawEmoji(ctx, b.icon, b.position.x, b.position.y, 42, b.angle);
+    }
+    for (let i = trailDots.length - 1; i >= 0; i--){
+      const d = trailDots[i]; d.a -= dt * 0.8;
+      if (d.a <= 0){ trailDots.splice(i, 1); continue; }
+      ctx.fillStyle = 'rgba(255,255,255,' + (d.a * 0.6) + ')';
+      ctx.beginPath(); ctx.arc(d.x, d.y, 4, 0, 6.28); ctx.fill();
+    }
+
+    // slingshot
+    const px = sling.pull ? sling.pull.x : sling.x, py = sling.pull ? sling.pull.y : sling.y;
+    ctx.strokeStyle = '#8B5A3C'; ctx.lineWidth = 14; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(sling.x - 34, sling.y - 40); ctx.lineTo(sling.x - 10, sling.y + 30);
+    ctx.lineTo(sling.x, floorY()); ctx.moveTo(sling.x + 34, sling.y - 40); ctx.lineTo(sling.x + 10, sling.y + 30); ctx.stroke();
+    ctx.strokeStyle = '#5b3a26'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(sling.x - 34, sling.y - 40); ctx.lineTo(px, py); ctx.lineTo(sling.x + 34, sling.y - 40); ctx.stroke();
+    if (sling.loaded) drawEmoji(ctx, sling.loaded.icon, px, py, 44);
+    if (sling.pull){
+      const power = Math.hypot(px - sling.x, py - sling.y) / 150;
+      ctx.fillStyle = 'rgba(255,210,74,' + (0.4 + power * 0.5) + ')';
+      ctx.beginPath(); ctx.arc(sling.x, sling.y - 90, 12 + power * 14, 0, 6.28); ctx.fill();
+    }
+  });
+});
+</script>
+</body>
+</html>
