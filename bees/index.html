@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Honey Harvest</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* Plant flowers anywhere. Bees fly out, collect pollen from open blooms,
+   and carry it home to fill the honey jar. Watch out: when the jar gets
+   full, a sneaky bear comes for it. Poke the bear to shoo it away! */
+Kit.init('🐝', 'Honey Harvest');
+const ctx = Kit.ctx;
+
+let flowers = [], bees = [], jars = 0, honey = 0, bear = null, sparkles = [];
+const hive = { x: 0, y: 0 };
+let tool = 'flower';
+
+function build(){
+  hive.x = Kit.W * 0.82; hive.y = Kit.H * 0.4;
+  flowers = []; bees = []; jars = 0; honey = 0; bear = null; sparkles = [];
+  for (let i = 0; i < 3; i++) addBee();
+  // a couple of starter flowers
+  addFlower(Kit.W * 0.25, Kit.H * 0.75);
+  addFlower(Kit.W * 0.45, Kit.H * 0.68);
+}
+function addBee(){
+  if (bees.length >= 10) return;
+  bees.push({ x: hive.x, y: hive.y + 40, vx: 0, vy: 0, ph: rand(0, 6),
+    state: 'roam', target: null, pollen: false });
+  Sound.squeak();
+}
+function addFlower(x, y){
+  if (flowers.length >= 14){ Sound.click(); return; }
+  flowers.push({ x, y, e: pick(['🌼','🌸','🌺','🌻','🌷']), grow: 0, nectar: 3 });
+  Sound.marimba ? Sound.marimba() : Sound.ding();
+}
+Kit.onResize = build; build();
+
+Kit.tray([
+  { icon: '🌼', id: 'flower' }, { icon: '🐝', id: 'bee' }, { icon: '🧹', id: 'reset' }
+], id => {
+  if (id === 'bee'){ addBee(); return; }
+  if (id === 'reset'){ build(); Sound.ding(); return; }
+  tool = id;
+}, 'flower');
+
+Kit.canvas.addEventListener('pointerdown', e => {
+  if (e.clientY > Kit.H - 100 || e.clientY < 70) return;
+  // poke the bear first if it's out
+  if (bear && Math.hypot(e.clientX - bear.x, e.clientY - bear.y) < 90){
+    bear.flee = true; Sound.boing(); Sound.squeak();
+    for (let k = 0; k < 8; k++) sparkles.push({ x: bear.x, y: bear.y, vx: rand(-120, 120), vy: rand(-160, -20), e: '💨', a: 1 });
+    return;
+  }
+  // near the hive: little swarm hello
+  if (Math.hypot(e.clientX - hive.x, e.clientY - hive.y) < 100){
+    for (const b of bees){ b.vx += rand(-160, 160); b.vy += rand(-120, 120); }
+    Sound.tone(120, 0.25, 'sawtooth', 0.05, 30);
+    return;
+  }
+  if (tool === 'flower') addFlower(e.clientX, Math.max(e.clientY, Kit.H * 0.3));
+});
+
+Kit.loop((dt, t) => {
+  /* flowers grow; nectar slowly refills */
+  for (const f of flowers){
+    f.grow = Math.min(1, f.grow + dt * 0.5);
+    if (f.nectar < 3 && Math.random() < dt * 0.15) f.nectar++;
+  }
+
+  /* bees */
+  for (const b of bees){
+    let tx = null, ty = null;
+    if (b.state === 'roam' && !b.pollen){
+      let best = null, bd = 1e9;
+      for (const f of flowers){
+        if (f.grow < 0.95 || f.nectar <= 0) continue;
+        const d = (f.x - b.x) ** 2 + (f.y - b.y) ** 2;
+        if (d < bd){ bd = d; best = f; }
+      }
+      if (best){ b.state = 'toFlower'; b.target = best; }
+    }
+    if (b.state === 'toFlower'){
+      const f = b.target;
+      if (!f || !flowers.includes(f) || f.nectar <= 0){ b.state = 'roam'; b.target = null; }
+      else {
+        tx = f.x; ty = f.y - 26;
+        if (Math.hypot(tx - b.x, ty - b.y) < 20){
+          f.nectar--; b.pollen = true; b.state = 'toHive'; b.target = null;
+          Sound.squeak();
+          for (let k = 0; k < 4; k++) sparkles.push({ x: b.x, y: b.y, vx: rand(-40, 40), vy: rand(-80, -20), e: '✨', a: 1 });
+        }
+      }
+    }
+    if (b.state === 'toHive'){
+      tx = hive.x; ty = hive.y + 40;
+      if (Math.hypot(tx - b.x, ty - b.y) < 30){
+        b.pollen = false; b.state = 'roam';
+        honey += 0.11; Sound.pop();
+        if (honey >= 1){
+          honey = 0; jars++;
+          Sound.ding(); Sound.twinkle ? Sound.twinkle() : Sound.boing();
+          for (let k = 0; k < 16; k++) sparkles.push({ x: hive.x, y: hive.y + 80, vx: rand(-180, 180), vy: rand(-260, -60), e: pick(['🍯','🌟','✨']), a: 1 });
+          if (!bear && jars >= 1 && Math.random() < 0.8) bear = { x: -80, y: Kit.H - 110, flee: false, munch: 0 };
+        }
+      }
+    }
+    if (tx !== null){
+      b.vx += (tx - b.x) * dt * 2.4; b.vy += (ty - b.y) * dt * 2.4;
+    } else {
+      b.vx += Math.sin(t * 1.6 + b.ph) * 70 * dt;
+      b.vy += Math.cos(t * 2.1 + b.ph) * 55 * dt;
+    }
+    b.vx *= (1 - dt * 1.7); b.vy *= (1 - dt * 1.7);
+    b.x = clamp(b.x + b.vx * dt, 16, Kit.W - 16);
+    b.y = clamp(b.y + b.vy * dt, 80, Kit.H - 90);
+  }
+
+  /* the bear: lumbers toward the hive, munches jars unless poked */
+  if (bear){
+    if (bear.flee){
+      bear.x -= 320 * dt;
+      if (bear.x < -120) bear = null;
+    } else if (bear.munch > 0){
+      bear.munch -= dt;
+      if (bear.munch <= 0){
+        if (jars > 0){ jars--; Sound.thud(); }
+        bear.flee = true;
+      }
+    } else {
+      bear.x += 46 * dt;
+      if (bear.x > hive.x - 120){ bear.munch = 1.6; Sound.crumble(); }
+    }
+  }
+
+  /* ---------- draw ---------- */
+  const g = ctx.createLinearGradient(0, 0, 0, Kit.H);
+  g.addColorStop(0, '#8ED0F5'); g.addColorStop(0.55, '#C8E8A8'); g.addColorStop(1, '#7FBF4D');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, Kit.W, Kit.H);
+  drawEmoji(ctx, '🌞', Kit.W * 0.1, 100, 74, t * 0.06);
+  drawEmoji(ctx, '☁️', Kit.W * 0.4 + Math.sin(t * 0.2) * 40, 84, 56);
+
+  // hive
+  ctx.strokeStyle = '#8B5A3C'; ctx.lineWidth = 10; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(hive.x - 30, hive.y + 130); ctx.lineTo(hive.x - 30, hive.y + 40);
+  ctx.moveTo(hive.x + 30, hive.y + 130); ctx.lineTo(hive.x + 30, hive.y + 40); ctx.stroke();
+  for (let i = 0; i < 4; i++){
+    ctx.fillStyle = i % 2 ? '#E8B23C' : '#D9A32E';
+    ctx.beginPath(); ctx.ellipse(hive.x, hive.y + 30 - i * 26, 62 - i * 9, 18, 0, 0, 6.28); ctx.fill();
+  }
+  ctx.fillStyle = '#5b3a26';
+  ctx.beginPath(); ctx.ellipse(hive.x, hive.y + 42, 13, 9, 0, 0, 6.28); ctx.fill();
+  // honey meter
+  ctx.fillStyle = 'rgba(0,0,0,.25)';
+  ctx.beginPath(); ctx.roundRect(hive.x - 44, hive.y + 96, 88, 16, 8); ctx.fill();
+  ctx.fillStyle = '#FFB020';
+  ctx.beginPath(); ctx.roundRect(hive.x - 44, hive.y + 96, 88 * clamp(honey, 0, 1), 16, 8); ctx.fill();
+  // jar shelf
+  for (let j = 0; j < Math.min(jars, 8); j++)
+    drawEmoji(ctx, '🍯', 40 + j * 44, 46, 36);
+  if (jars > 8) drawEmoji(ctx, '➕', 40 + 8 * 44, 46, 26);
+
+  for (const f of flowers){
+    drawEmoji(ctx, '🌱', f.x, f.y + 12, 20 + (1 - f.grow) * 10, 0, 1);
+    if (f.grow > 0.3)
+      drawEmoji(ctx, f.e, f.x, f.y - f.grow * 8, 14 + f.grow * 34, Math.sin(t * 2 + f.x) * 0.06);
+    // nectar dots
+    for (let n = 0; n < f.nectar; n++)
+      drawEmoji(ctx, '✨', f.x - 16 + n * 16, f.y - 44, 10);
+  }
+
+  for (const b of bees){
+    drawEmoji(ctx, '🐝', b.x, b.y + Math.sin(t * 10 + b.ph) * 4, 36, Math.sin(t * 7 + b.ph) * 0.2, b.vx < 0);
+    if (b.pollen) drawEmoji(ctx, '✨', b.x + 13, b.y - 11, 13);
+  }
+
+  if (bear){
+    const wob = bear.munch > 0 ? Math.sin(t * 12) * 0.1 : Math.sin(t * 5) * 0.05;
+    drawEmoji(ctx, bear.munch > 0 ? '😋' : '🐻', bear.x, bear.y, 110, wob, bear.flee);
+    if (!bear.flee && bear.munch <= 0) drawEmoji(ctx, '🍯', bear.x + 50, bear.y - 50, 24, 0, false, 0.6);
+  }
+
+  for (let i = sparkles.length - 1; i >= 0; i--){
+    const s = sparkles[i];
+    s.vy += 300 * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.a -= dt * 0.9;
+    if (s.a <= 0){ sparkles.splice(i, 1); continue; }
+    drawEmoji(ctx, s.e, s.x, s.y, 20, 0, false, s.a);
+  }
+});
+</script>
+</body>
+</html>
