@@ -73,7 +73,7 @@ Kit.canvas.addEventListener('pointerdown', e => {
   if (e.clientY > Kit.H - 100) return;
   if (tool === 'rocket') aim = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, pid: e.pointerId };
   else if (tool === 'erase') eraseAt(e.clientX, e.clientY);
-  else { addBody(tool, e.clientX, e.clientY); selectTool('rocket'); }  // one per pick
+  else addBody(tool, e.clientX, e.clientY);
 });
 Kit.canvas.addEventListener('pointermove', e => {
   if (aim && e.pointerId === aim.pid){ aim.x = e.clientX; aim.y = e.clientY; }

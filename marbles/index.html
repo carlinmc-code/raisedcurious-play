@@ -11,7 +11,7 @@
 <script src="../shared/kit.js"></script>
 <script>
 'use strict';
-/* Marble Run v2. Draw ramps, then build contraptions: trampolines,
+/* Marble Run v2. Draw ramps, then build contraptions: funnels, trampolines,
    fans, magnets, portals, bells, motorized spinners, and a marble-catching
    cup that erupts when it fills. Every piece does something predictable so
    they chain into machines. */
@@ -72,6 +72,18 @@ Kit.loadMatter().then(Matter => {
       isStatic: true, angle: Math.atan2(y2 - y1, x2 - x1), chamfer: { radius: 7 }
     });
     addPart({ type: 'ramp', x: (x1 + x2) / 2, y: (y1 + y2) / 2, r: len / 2, bodies: [b], data: { len } });
+  }
+  function addFunnel(x, y){
+    // Gap-first design: inner tips 35px either side of the tap point gives a
+    // 56px clear aperture, 1.75x a marble, so streams pour through instead of
+    // wedging (v1's aperture was 11px). Slick walls stop wedging too.
+    const a = 0.55, hl = 65;
+    const dx = Math.cos(a) * hl, dy = Math.sin(a) * hl;
+    const L = Bodies.rectangle(x - 35 - dx, y - dy, hl * 2, 14,
+      { isStatic: true, angle: a, friction: 0.001, chamfer: { radius: 7 } });
+    const R = Bodies.rectangle(x + 35 + dx, y - dy, hl * 2, 14,
+      { isStatic: true, angle: -a, friction: 0.001, chamfer: { radius: 7 } });
+    addPart({ type: 'funnel', x, y, r: 120, bodies: [L, R], data: {} });
   }
   function addTramp(x, y){
     const b = Bodies.rectangle(x, y, 116, 18, { isStatic: true, restitution: 1.55, chamfer: { radius: 9 } });
@@ -134,10 +146,10 @@ Kit.loadMatter().then(Matter => {
   }
 
   /* ---------------- tray + input ---------------- */
-  const STAMPS = { tramp: addTramp, fan: addFan, magnet: addMagnet,
+  const STAMPS = { funnel: addFunnel, tramp: addTramp, fan: addFan, magnet: addMagnet,
                    portal: addPortal, bell: addBell, spinner: addSpinner, cup: addCup };
   const trayEl = Kit.tray([
-    { icon: '✏️', id: 'draw' }, { icon: '⚡', id: 'tramp' },
+    { icon: '✏️', id: 'draw' }, { icon: '⏳', id: 'funnel' }, { icon: '⚡', id: 'tramp' },
     { icon: '🌬️', id: 'fan' }, { icon: '🧲', id: 'magnet' }, { icon: '🌀', id: 'portal' },
     { icon: '🔔', id: 'bell' }, { icon: '🎡', id: 'spinner' }, { icon: '🏆', id: 'cup' },
     { icon: '🫗', id: 'pour' }, { icon: '🧽', id: 'erase' }, { icon: '🧹', id: 'reset' }
@@ -161,13 +173,7 @@ Kit.loadMatter().then(Matter => {
     if (e.clientY > Kit.H - 100) return;
     if (tool === 'draw') drawing = { x1: e.clientX, y1: e.clientY, x2: e.clientX, y2: e.clientY, pid: e.pointerId };
     else if (tool === 'erase') eraseAt(e.clientX, e.clientY);
-    else if (STAMPS[tool]){
-      const used = tool;
-      STAMPS[used](e.clientX, e.clientY);
-      // one piece per pick; portals stay armed until their exit is placed
-      const waiting = used === 'portal' && parts.some(q => q.type === 'portal' && q.data.role === 'in' && !q.data.link);
-      if (!waiting) selectTool('draw');
-    }
+    else if (STAMPS[tool]) STAMPS[tool](e.clientX, e.clientY);
   });
   Kit.canvas.addEventListener('pointermove', e => {
     if (drawing && e.pointerId === drawing.pid){ drawing.x2 = e.clientX; drawing.y2 = e.clientY; }
@@ -284,6 +290,7 @@ Kit.loadMatter().then(Matter => {
 
     for (const p of parts){
       if (p.type === 'ramp') drawBar(p.bodies[0], p.data.len, '#E8C05A');
+      else if (p.type === 'funnel'){ drawBar(p.bodies[0], 130, '#E8C05A'); drawBar(p.bodies[1], 130, '#E8C05A'); }
       else if (p.type === 'spinner') drawBar(p.data.body, 140, '#B79CFF');
       else if (p.type === 'tramp'){
         const sq = 1 - p.data.squash * 0.35;
