@@ -11,8 +11,10 @@
 <script src="../shared/kit.js"></script>
 <script>
 'use strict';
-/* Draw ramps anywhere with your finger. Pour marbles from the top.
-   Stamp bouncers and spinners. Rearranging mid-pour is encouraged. */
+/* Marble Run v2. Draw ramps, then build contraptions: funnels, trampolines,
+   fans, magnets, portals, bells, motorized spinners, and a marble-catching
+   cup that erupts when it fills. Every piece does something predictable so
+   they chain into machines. */
 Kit.init('🔵', 'Marble Run');
 
 Kit.loadMatter().then(Matter => {
@@ -21,26 +23,46 @@ Kit.loadMatter().then(Matter => {
   const world = engine.world;
   const ctx = Kit.ctx;
 
-  const marbles = [], ramps = [], bumpers = [], spinners = [];
+  const marbles = [];
+  const parts = [];   // {type, x, y, r, bodies:[], data:{}}
   let tool = 'draw', drawing = null, pouring = false, pourT = 0;
+  const COLORS = ['#FF6FA5', '#38BDF8', '#4ADE80', '#FFD24A', '#B79CFF'];
+  const PENT = [523, 587, 659, 784, 880];
 
   let ground = null;
   function buildBounds(){
     if (ground) Composite.remove(world, ground);
-    ground = Bodies.rectangle(Kit.W / 2, Kit.H + 60, Kit.W * 3, 120, { isStatic: true, label: 'floor' });
+    ground = Bodies.rectangle(Kit.W / 2, Kit.H + 60, Kit.W * 3, 120, { isStatic: true });
     Composite.add(world, ground);
   }
   Kit.onResize = buildBounds; buildBounds();
 
-  const COLORS = ['#FF6FA5', '#38BDF8', '#4ADE80', '#FFD24A', '#B79CFF'];
-
-  function addMarble(){
-    const b = Bodies.circle(rand(Kit.W * 0.15, Kit.W * 0.85), -20, 16, {
-      restitution: 0.35, friction: 0.005, density: 0.004
-    });
-    b.tint = pick(COLORS);
-    Composite.add(world, b); marbles.push(b);
-    if (marbles.length > 40){ Composite.remove(world, marbles.shift()); }
+  /* ---------------- parts ---------------- */
+  function addPart(p){
+    for (const b of p.bodies) Composite.add(world, b);
+    parts.push(p);
+    if (parts.length > 30) removePart(parts[0]);
+    Sound.click();
+  }
+  function removePart(p){
+    for (const b of p.bodies) Composite.remove(world, b);
+    const i = parts.indexOf(p); if (i >= 0) parts.splice(i, 1);
+  }
+  function eraseAt(x, y){
+    // hit any physical body, or the zone circle for body-less pieces
+    for (let i = parts.length - 1; i >= 0; i--){
+      const p = parts[i];
+      const hitBody = p.bodies.length && Matter.Query.point(p.bodies, { x, y }).length;
+      const hitZone = Math.hypot(x - p.x, y - p.y) < (p.r || 40);
+      if (hitBody || hitZone){
+        // portals erase as a pair
+        if (p.type === 'portal' && p.data.link){
+          const mate = parts.find(q => q !== p && q.type === 'portal' && q.data.pair === p.data.pair);
+          if (mate) removePart(mate);
+        }
+        removePart(p); Sound.crumble(); return;
+      }
+    }
   }
 
   function addRamp(x1, y1, x2, y2){
@@ -49,45 +71,87 @@ Kit.loadMatter().then(Matter => {
     const b = Bodies.rectangle((x1 + x2) / 2, (y1 + y2) / 2, len, 14, {
       isStatic: true, angle: Math.atan2(y2 - y1, x2 - x1), chamfer: { radius: 7 }
     });
-    Composite.add(world, b); ramps.push({ b, len });
-    Sound.click();
-    if (ramps.length > 24){ Composite.remove(world, ramps.shift().b); }
+    addPart({ type: 'ramp', x: (x1 + x2) / 2, y: (y1 + y2) / 2, r: len / 2, bodies: [b], data: { len } });
   }
-
-  function addBumper(x, y){
-    const b = Bodies.circle(x, y, 26, { isStatic: true, restitution: 1.4 });
-    Composite.add(world, b); bumpers.push(b); Sound.boing();
+  function addFunnel(x, y){
+    const L = Bodies.rectangle(x - 62, y, 120, 14, { isStatic: true, angle: 0.6, chamfer: { radius: 7 } });
+    const R = Bodies.rectangle(x + 62, y, 120, 14, { isStatic: true, angle: -0.6, chamfer: { radius: 7 } });
+    addPart({ type: 'funnel', x, y, r: 100, bodies: [L, R], data: {} });
+  }
+  function addTramp(x, y){
+    const b = Bodies.rectangle(x, y, 116, 18, { isStatic: true, restitution: 1.55, chamfer: { radius: 9 } });
+    addPart({ type: 'tramp', x, y, r: 60, bodies: [b], data: { squash: 0, body: b } });
+  }
+  function addFan(x, y){
+    addPart({ type: 'fan', x, y: Math.min(y, Kit.H - 140), r: 46, bodies: [], data: { ph: rand(0, 6) } });
+  }
+  function addMagnet(x, y){
+    addPart({ type: 'magnet', x, y, r: 40, bodies: [], data: {} });
+  }
+  let portalPairSeq = 0;
+  function addPortal(x, y){
+    const open = parts.find(p => p.type === 'portal' && !p.data.link);
+    if (open){
+      const pr = { type: 'portal', x, y, r: 34, bodies: [], data: { role: 'out', pair: open.data.pair, link: true } };
+      open.data.link = true;
+      addPart(pr); Sound.whoosh();
+    } else {
+      // cap at two full pairs: recycle the oldest pair
+      const pairs = [...new Set(parts.filter(p => p.type === 'portal').map(p => p.data.pair))];
+      if (pairs.length >= 2)
+        parts.filter(p => p.type === 'portal' && p.data.pair === pairs[0]).slice().forEach(removePart);
+      portalPairSeq++;
+      addPart({ type: 'portal', x, y, r: 34, bodies: [], data: { role: 'in', pair: portalPairSeq, link: false } });
+    }
+  }
+  function addBell(x, y){
+    const b = Bodies.circle(x, y, 22, { isStatic: true, restitution: 0.7 });
+    const note = PENT[parts.filter(p => p.type === 'bell').length % PENT.length];
+    addPart({ type: 'bell', x, y, r: 34, bodies: [b], data: { flash: 0, note, body: b } });
   }
   function addSpinner(x, y){
-    const b = Bodies.rectangle(x, y, 130, 14, { chamfer: { radius: 7 } });
-    Body.setStatic(b, false);
+    const b = Bodies.rectangle(x, y, 140, 14, { chamfer: { radius: 7 }, density: 0.02 });
     const pin = Matter.Constraint.create({ pointA: { x, y }, bodyB: b, stiffness: 1, length: 0 });
-    Composite.add(world, [b, pin]); spinners.push(b); Sound.click();
+    Composite.add(world, pin);
+    const dir = parts.filter(p => p.type === 'spinner').length % 2 ? -1 : 1;
+    addPart({ type: 'spinner', x, y, r: 74, bodies: [b], data: { body: b, pin, dir } });
+  }
+  function addCup(x, y){
+    y = Math.min(y, Kit.H - 150);
+    const L = Bodies.rectangle(x - 42, y, 12, 70, { isStatic: true, chamfer: { radius: 5 } });
+    const R = Bodies.rectangle(x + 42, y, 12, 70, { isStatic: true, chamfer: { radius: 5 } });
+    const B = Bodies.rectangle(x, y + 38, 92, 12, { isStatic: true, chamfer: { radius: 5 } });
+    addPart({ type: 'cup', x, y, r: 60, bodies: [L, R, B], data: { count: 0, burst: 0 } });
   }
 
-  function eraseAt(x, y){
-    const all = [...ramps.map(r => r.b), ...bumpers, ...spinners];
-    const hit = Matter.Query.point(all, { x, y })[0];
-    if (!hit) return;
-    Composite.remove(world, hit);
-    for (const arr of [bumpers, spinners]){
-      const i = arr.indexOf(hit); if (i >= 0) arr.splice(i, 1);
-    }
-    const ri = ramps.findIndex(r => r.b === hit); if (ri >= 0) ramps.splice(ri, 1);
-    Sound.crumble();
+  /* ---------------- marbles ---------------- */
+  function addMarble(){
+    const b = Bodies.circle(rand(Kit.W * 0.15, Kit.W * 0.85), -20, 16, {
+      restitution: 0.35, friction: 0.005, density: 0.004
+    });
+    b.tint = pick(COLORS); b.pcd = 0;
+    Composite.add(world, b); marbles.push(b);
+    if (marbles.length > 40) Composite.remove(world, marbles.shift());
+  }
+  function killMarble(m){
+    const i = marbles.indexOf(m);
+    if (i >= 0){ Composite.remove(world, m); marbles.splice(i, 1); }
   }
 
+  /* ---------------- tray + input ---------------- */
+  const STAMPS = { funnel: addFunnel, tramp: addTramp, fan: addFan, magnet: addMagnet,
+                   portal: addPortal, bell: addBell, spinner: addSpinner, cup: addCup };
   Kit.tray([
-    { icon: '✏️', id: 'draw' }, { icon: '🍄', id: 'bumper' }, { icon: '🎡', id: 'spinner' },
+    { icon: '✏️', id: 'draw' }, { icon: '⏳', id: 'funnel' }, { icon: '⚡', id: 'tramp' },
+    { icon: '🌬️', id: 'fan' }, { icon: '🧲', id: 'magnet' }, { icon: '🌀', id: 'portal' },
+    { icon: '🔔', id: 'bell' }, { icon: '🎡', id: 'spinner' }, { icon: '🏆', id: 'cup' },
     { icon: '🫗', id: 'pour' }, { icon: '🧽', id: 'erase' }, { icon: '🧹', id: 'reset' }
   ], (id, btn) => {
     if (id === 'pour'){ pouring = !pouring; btn.classList.toggle('active', pouring); Sound.ding(); return; }
     if (id === 'reset'){
       for (const m of marbles) Composite.remove(world, m);
-      for (const r of ramps) Composite.remove(world, r.b);
-      for (const b of bumpers) Composite.remove(world, b);
-      for (const s of spinners) Composite.remove(world, s);
-      marbles.length = ramps.length = bumpers.length = spinners.length = 0;
+      marbles.length = 0;
+      while (parts.length) removePart(parts[0]);
       Sound.ding(); return;
     }
     tool = id;
@@ -96,9 +160,8 @@ Kit.loadMatter().then(Matter => {
   Kit.canvas.addEventListener('pointerdown', e => {
     if (e.clientY > Kit.H - 100) return;
     if (tool === 'draw') drawing = { x1: e.clientX, y1: e.clientY, x2: e.clientX, y2: e.clientY, pid: e.pointerId };
-    else if (tool === 'bumper') addBumper(e.clientX, e.clientY);
-    else if (tool === 'spinner') addSpinner(e.clientX, e.clientY);
     else if (tool === 'erase') eraseAt(e.clientX, e.clientY);
+    else if (STAMPS[tool]) STAMPS[tool](e.clientX, e.clientY);
   });
   Kit.canvas.addEventListener('pointermove', e => {
     if (drawing && e.pointerId === drawing.pid){ drawing.x2 = e.clientX; drawing.y2 = e.clientY; }
@@ -111,12 +174,23 @@ Kit.loadMatter().then(Matter => {
     }
   });
 
+  /* collision reactions: bells ring, trampolines squash */
   Matter.Events.on(engine, 'collisionStart', ev => {
     for (const pair of ev.pairs){
-      if (bumpers.includes(pair.bodyA) || bumpers.includes(pair.bodyB)) Sound.boing();
+      for (const p of parts){
+        if (p.type === 'bell' && (pair.bodyA === p.data.body || pair.bodyB === p.data.body)){
+          p.data.flash = 1;
+          Sound.tone(p.data.note, 0.5, 'sine', 0.12);
+          Sound.tone(p.data.note * 2, 0.3, 'sine', 0.04);
+        }
+        if (p.type === 'tramp' && (pair.bodyA === p.data.body || pair.bodyB === p.data.body)){
+          p.data.squash = 1; Sound.boing();
+        }
+      }
     }
   });
 
+  /* ---------------- drawing helpers ---------------- */
   function drawBar(b, len, color){
     ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
     ctx.fillStyle = color; ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 3;
@@ -127,24 +201,148 @@ Kit.loadMatter().then(Matter => {
   Kit.loop((dt, t) => {
     pourT += dt;
     if (pouring && pourT > 0.35){ pourT = 0; addMarble(); }
+
+    /* part physics behaviors */
+    for (const p of parts){
+      if (p.type === 'spinner') Body.setAngularVelocity(p.data.body, p.data.dir * 0.09);
+      if (p.type === 'fan'){
+        for (const m of marbles){
+          const dx = m.position.x - p.x, dy = p.y - m.position.y; // dy: height above fan
+          if (Math.abs(dx) < 52 && dy > -10 && dy < 240){
+            const lift = (1 - dy / 260);
+            Body.applyForce(m, m.position, { x: Math.sin(t * 6 + m.position.y * 0.02) * 0.00008,
+                                             y: -0.0011 * lift });
+          }
+        }
+      }
+      if (p.type === 'magnet'){
+        for (const m of marbles){
+          const dx = p.x - m.position.x, dy = p.y - m.position.y;
+          const d = Math.hypot(dx, dy);
+          if (d < 180 && d > 26){
+            const f = 0.00045 / Math.max(0.25, d / 180);
+            Body.applyForce(m, m.position, { x: (dx / d) * f * 0.001 * m.mass * 900, y: (dy / d) * f * 0.001 * m.mass * 900 });
+          }
+        }
+      }
+      if (p.type === 'portal' && p.data.role === 'in' && p.data.link){
+        const out = parts.find(q => q.type === 'portal' && q.data.pair === p.data.pair && q.data.role === 'out');
+        if (out){
+          for (const m of marbles){
+            m.pcd = Math.max(0, (m.pcd || 0) - dt);
+            if (m.pcd <= 0 && Math.hypot(m.position.x - p.x, m.position.y - p.y) < 30){
+              Body.setPosition(m, { x: out.x, y: out.y });
+              m.pcd = 0.7; Sound.whoosh();
+            }
+          }
+        }
+      }
+      if (p.type === 'cup'){
+        for (const m of marbles.slice()){
+          if (Math.abs(m.position.x - p.x) < 34 && m.position.y > p.y - 24 && m.position.y < p.y + 34
+              && Math.hypot(m.velocity.x, m.velocity.y) < 4){
+            killMarble(m); p.data.count++;
+            Sound.pop();
+            if (p.data.count >= 5){
+              p.data.count = 0; p.data.burst = 1.2;
+              Sound.ding(); Sound.boing();
+            }
+          }
+        }
+        p.data.burst = Math.max(0, p.data.burst - dt);
+      }
+      if (p.data && p.data.squash !== undefined) p.data.squash = Math.max(0, p.data.squash - dt * 3);
+      if (p.data && p.data.flash !== undefined) p.data.flash = Math.max(0, p.data.flash - dt * 2);
+    }
+
     Engine.update(engine, Math.min(dt, 0.033) * 1000);
 
+    /* ---------------- render ---------------- */
     const g = ctx.createLinearGradient(0, 0, 0, Kit.H);
     g.addColorStop(0, '#123a5e'); g.addColorStop(1, '#0a1a33');
     ctx.fillStyle = g; ctx.fillRect(0, 0, Kit.W, Kit.H);
-    // faint dotted grid for a workshop feel
     ctx.fillStyle = 'rgba(255,255,255,.06)';
     for (let y = 40; y < Kit.H; y += 60)
       for (let x = 30; x < Kit.W; x += 60){ ctx.beginPath(); ctx.arc(x, y, 2, 0, 6.28); ctx.fill(); }
 
-    for (const r of ramps) drawBar(r.b, r.len, '#E8C05A');
-    for (const s of spinners) drawBar(s, 130, '#B79CFF');
-    for (const b of bumpers){
-      ctx.fillStyle = '#FF6FA5'; ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 26, 0, 6.28); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 10 + Math.sin(t * 6) * 2, 0, 6.28); ctx.fill();
+    for (const p of parts){
+      if (p.type === 'ramp') drawBar(p.bodies[0], p.data.len, '#E8C05A');
+      else if (p.type === 'funnel'){ drawBar(p.bodies[0], 120, '#E8C05A'); drawBar(p.bodies[1], 120, '#E8C05A'); }
+      else if (p.type === 'spinner') drawBar(p.data.body, 140, '#B79CFF');
+      else if (p.type === 'tramp'){
+        const sq = 1 - p.data.squash * 0.35;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.scale(1 + p.data.squash * 0.25, sq);
+        ctx.fillStyle = '#4ADE80'; ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.roundRect(-58, -9, 116, 18, 9); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = '#2f9e57'; ctx.lineWidth = 4;
+        for (const ox of [-34, 0, 34]){
+          ctx.beginPath(); ctx.moveTo(ox - 8, 9); ctx.lineTo(ox + 8, 20); ctx.stroke();
+        }
+        ctx.restore();
+      }
+      else if (p.type === 'fan'){
+        // air column
+        ctx.save(); ctx.globalAlpha = 0.16; ctx.fillStyle = '#9AD8FF';
+        ctx.beginPath(); ctx.roundRect(p.x - 50, p.y - 240, 100, 236, 40); ctx.fill(); ctx.restore();
+        ctx.strokeStyle = 'rgba(200,235,255,.5)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+        for (let i = 0; i < 3; i++){
+          const yy = p.y - ((t * 130 + i * 80 + p.data.ph * 40) % 230);
+          ctx.beginPath(); ctx.moveTo(p.x - 26, yy); ctx.quadraticCurveTo(p.x, yy - 12, p.x + 26, yy); ctx.stroke();
+        }
+        ctx.save(); ctx.translate(p.x, p.y);
+        ctx.fillStyle = '#7A8194'; ctx.beginPath(); ctx.roundRect(-40, -6, 80, 26, 8); ctx.fill();
+        ctx.rotate(t * 14);
+        ctx.fillStyle = '#DCE6F2';
+        for (let k = 0; k < 3; k++){ ctx.rotate(2.094); ctx.beginPath(); ctx.ellipse(0, -13, 7, 15, 0, 0, 6.28); ctx.fill(); }
+        ctx.restore();
+      }
+      else if (p.type === 'magnet'){
+        ctx.save(); ctx.translate(p.x, p.y); ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, 60 + Math.sin(t * 3) * 5, 0, 6.28); ctx.stroke();
+        ctx.strokeStyle = '#E85D5D'; ctx.lineWidth = 20;
+        ctx.beginPath(); ctx.arc(0, -6, 22, Math.PI, 0); ctx.stroke();
+        ctx.strokeStyle = '#C4CDD8';
+        ctx.beginPath(); ctx.moveTo(-22, -6); ctx.lineTo(-22, 14); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(22, -6); ctx.lineTo(22, 14); ctx.stroke();
+        ctx.restore();
+      }
+      else if (p.type === 'portal'){
+        const cIn = p.data.role === 'in' ? '#FF9330' : '#38BDF8';
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(t * (p.data.role === 'in' ? 2 : -2));
+        for (let k = 0; k < 3; k++){
+          ctx.strokeStyle = cIn; ctx.globalAlpha = 0.9 - k * 0.25; ctx.lineWidth = 5 - k;
+          ctx.beginPath(); ctx.arc(0, 0, 14 + k * 8, k, k + 4.6); ctx.stroke();
+        }
+        ctx.restore();
+        if (!p.data.link && p.data.role === 'in'){
+          ctx.fillStyle = 'rgba(255,255,255,.7)';
+          ctx.font = '16px "Baloo 2",sans-serif'; ctx.textAlign = 'center';
+          drawEmoji(ctx, '👆', p.x, p.y - 44 + Math.sin(t * 4) * 4, 22);
+        }
+      }
+      else if (p.type === 'bell'){
+        if (p.data.flash > 0){
+          ctx.save(); ctx.globalAlpha = p.data.flash * 0.5; ctx.strokeStyle = '#FFD24A'; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.arc(p.x, p.y, 30 + (1 - p.data.flash) * 26, 0, 6.28); ctx.stroke(); ctx.restore();
+        }
+        drawEmoji(ctx, '🔔', p.x, p.y, 40, p.data.flash * Math.sin(t * 30) * 0.3);
+      }
+      else if (p.type === 'cup'){
+        for (const b of p.bodies) drawBar(b, b === p.bodies[2] ? 92 : 70, '#E8A05A');
+        // collected marbles shown as dots
+        for (let k = 0; k < p.data.count; k++){
+          ctx.fillStyle = COLORS[k % COLORS.length];
+          ctx.beginPath(); ctx.arc(p.x - 24 + k * 12, p.y + 24, 7, 0, 6.28); ctx.fill();
+        }
+        if (p.data.burst > 0){
+          for (let k = 0; k < 3; k++)
+            drawEmoji(ctx, pick(['✨','🌟','🎉']), p.x + rand(-50, 50), p.y - rand(10, 90), 22, 0, false, p.data.burst);
+        }
+        drawEmoji(ctx, '🏆', p.x, p.y - 52, 26);
+      }
     }
+
     for (const m of marbles){
       ctx.fillStyle = m.tint;
       ctx.beginPath(); ctx.arc(m.position.x, m.position.y, 16, 0, 6.28); ctx.fill();
