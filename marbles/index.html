@@ -11,7 +11,7 @@
 <script src="../shared/kit.js"></script>
 <script>
 'use strict';
-/* Marble Run v2. Draw ramps, then build contraptions: funnels, trampolines,
+/* Marble Run v2. Draw ramps, then build contraptions: trampolines,
    fans, magnets, portals, bells, motorized spinners, and a marble-catching
    cup that erupts when it fills. Every piece does something predictable so
    they chain into machines. */
@@ -72,11 +72,6 @@ Kit.loadMatter().then(Matter => {
       isStatic: true, angle: Math.atan2(y2 - y1, x2 - x1), chamfer: { radius: 7 }
     });
     addPart({ type: 'ramp', x: (x1 + x2) / 2, y: (y1 + y2) / 2, r: len / 2, bodies: [b], data: { len } });
-  }
-  function addFunnel(x, y){
-    const L = Bodies.rectangle(x - 62, y, 120, 14, { isStatic: true, angle: 0.6, chamfer: { radius: 7 } });
-    const R = Bodies.rectangle(x + 62, y, 120, 14, { isStatic: true, angle: -0.6, chamfer: { radius: 7 } });
-    addPart({ type: 'funnel', x, y, r: 100, bodies: [L, R], data: {} });
   }
   function addTramp(x, y){
     const b = Bodies.rectangle(x, y, 116, 18, { isStatic: true, restitution: 1.55, chamfer: { radius: 9 } });
@@ -139,29 +134,40 @@ Kit.loadMatter().then(Matter => {
   }
 
   /* ---------------- tray + input ---------------- */
-  const STAMPS = { funnel: addFunnel, tramp: addTramp, fan: addFan, magnet: addMagnet,
+  const STAMPS = { tramp: addTramp, fan: addFan, magnet: addMagnet,
                    portal: addPortal, bell: addBell, spinner: addSpinner, cup: addCup };
-  Kit.tray([
-    { icon: '✏️', id: 'draw' }, { icon: '⏳', id: 'funnel' }, { icon: '⚡', id: 'tramp' },
+  const trayEl = Kit.tray([
+    { icon: '✏️', id: 'draw' }, { icon: '⚡', id: 'tramp' },
     { icon: '🌬️', id: 'fan' }, { icon: '🧲', id: 'magnet' }, { icon: '🌀', id: 'portal' },
     { icon: '🔔', id: 'bell' }, { icon: '🎡', id: 'spinner' }, { icon: '🏆', id: 'cup' },
     { icon: '🫗', id: 'pour' }, { icon: '🧽', id: 'erase' }, { icon: '🧹', id: 'reset' }
   ], (id, btn) => {
-    if (id === 'pour'){ pouring = !pouring; btn.classList.toggle('active', pouring); Sound.ding(); return; }
+    if (id === 'pour'){ pouring = !pouring; btn.classList.toggle('active', pouring); Sound.ding(); selectTool(tool); return; }
     if (id === 'reset'){
       for (const m of marbles) Composite.remove(world, m);
       marbles.length = 0;
       while (parts.length) removePart(parts[0]);
-      Sound.ding(); return;
+      Sound.ding(); selectTool(tool); return;
     }
     tool = id;
   }, 'draw');
+
+  function selectTool(id){
+    tool = id;
+    trayEl.querySelectorAll('.kit-tool').forEach(b => b.classList.toggle('active', b.title === id));
+  }
 
   Kit.canvas.addEventListener('pointerdown', e => {
     if (e.clientY > Kit.H - 100) return;
     if (tool === 'draw') drawing = { x1: e.clientX, y1: e.clientY, x2: e.clientX, y2: e.clientY, pid: e.pointerId };
     else if (tool === 'erase') eraseAt(e.clientX, e.clientY);
-    else if (STAMPS[tool]) STAMPS[tool](e.clientX, e.clientY);
+    else if (STAMPS[tool]){
+      const used = tool;
+      STAMPS[used](e.clientX, e.clientY);
+      // one piece per pick; portals stay armed until their exit is placed
+      const waiting = used === 'portal' && parts.some(q => q.type === 'portal' && q.data.role === 'in' && !q.data.link);
+      if (!waiting) selectTool('draw');
+    }
   });
   Kit.canvas.addEventListener('pointermove', e => {
     if (drawing && e.pointerId === drawing.pid){ drawing.x2 = e.clientX; drawing.y2 = e.clientY; }
@@ -210,8 +216,9 @@ Kit.loadMatter().then(Matter => {
           const dx = m.position.x - p.x, dy = p.y - m.position.y; // dy: height above fan
           if (Math.abs(dx) < 52 && dy > -10 && dy < 240){
             const lift = (1 - dy / 260);
-            Body.applyForce(m, m.position, { x: Math.sin(t * 6 + m.position.y * 0.02) * 0.00008,
-                                             y: -0.0011 * lift });
+            // gravity force is mass-scaled, so the fan must be too or heavy marbles fall through
+            Body.applyForce(m, m.position, { x: Math.sin(t * 6 + m.position.y * 0.02) * m.mass * 0.0004,
+                                             y: -m.mass * 0.0019 * lift });
           }
         }
       }
@@ -219,9 +226,9 @@ Kit.loadMatter().then(Matter => {
         for (const m of marbles){
           const dx = p.x - m.position.x, dy = p.y - m.position.y;
           const d = Math.hypot(dx, dy);
-          if (d < 180 && d > 26){
-            const f = 0.00045 / Math.max(0.25, d / 180);
-            Body.applyForce(m, m.position, { x: (dx / d) * f * 0.001 * m.mass * 900, y: (dy / d) * f * 0.001 * m.mass * 900 });
+          if (d < 200 && d > 20){
+            const pull = m.mass * 0.0042 * (1 - d / 200);
+            Body.applyForce(m, m.position, { x: (dx / d) * pull, y: (dy / d) * pull });
           }
         }
       }
@@ -244,8 +251,18 @@ Kit.loadMatter().then(Matter => {
             killMarble(m); p.data.count++;
             Sound.pop();
             if (p.data.count >= 5){
-              p.data.count = 0; p.data.burst = 1.2;
+              p.data.count = 0; p.data.burst = 1.4;
               Sound.ding(); Sound.boing();
+              Sound.tone(660, 0.3, 'sine', 0.1); Sound.tone(880, 0.5, 'sine', 0.1, 200);
+              // the payoff: the cup fires a marble fountain skyward
+              for (let k = 0; k < 5; k++){
+                const nb = Bodies.circle(p.x + rand(-14, 14), p.y - 44, 16, {
+                  restitution: 0.35, friction: 0.005, density: 0.004 });
+                nb.tint = pick(COLORS); nb.pcd = 0;
+                Body.setVelocity(nb, { x: rand(-7, 7), y: rand(-17, -11) });
+                Composite.add(world, nb); marbles.push(nb);
+              }
+              while (marbles.length > 40) Composite.remove(world, marbles.shift());
             }
           }
         }
@@ -267,7 +284,6 @@ Kit.loadMatter().then(Matter => {
 
     for (const p of parts){
       if (p.type === 'ramp') drawBar(p.bodies[0], p.data.len, '#E8C05A');
-      else if (p.type === 'funnel'){ drawBar(p.bodies[0], 120, '#E8C05A'); drawBar(p.bodies[1], 120, '#E8C05A'); }
       else if (p.type === 'spinner') drawBar(p.data.body, 140, '#B79CFF');
       else if (p.type === 'tramp'){
         const sq = 1 - p.data.squash * 0.35;
@@ -336,8 +352,12 @@ Kit.loadMatter().then(Matter => {
           ctx.beginPath(); ctx.arc(p.x - 24 + k * 12, p.y + 24, 7, 0, 6.28); ctx.fill();
         }
         if (p.data.burst > 0){
-          for (let k = 0; k < 3; k++)
-            drawEmoji(ctx, pick(['✨','🌟','🎉']), p.x + rand(-50, 50), p.y - rand(10, 90), 22, 0, false, p.data.burst);
+          ctx.save(); ctx.globalAlpha = Math.min(1, p.data.burst) * 0.7;
+          ctx.strokeStyle = '#FFD24A'; ctx.lineWidth = 6;
+          ctx.beginPath(); ctx.arc(p.x, p.y - 10, 20 + (1.4 - p.data.burst) * 100, 0, 6.28); ctx.stroke();
+          ctx.restore();
+          for (let k = 0; k < 4; k++)
+            drawEmoji(ctx, pick(['✨','🌟','🎉']), p.x + rand(-60, 60), p.y - rand(10, 110), 26, 0, false, Math.min(1, p.data.burst));
         }
         drawEmoji(ctx, '🏆', p.x, p.y - 52, 26);
       }
