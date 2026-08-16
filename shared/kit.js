@@ -38,6 +38,23 @@ const Kit = {
     const up = e => this.pointers.delete(e.pointerId);
     cv.addEventListener('pointerup', up);
     cv.addEventListener('pointercancel', up);
+
+    // iOS Safari ignores user-scalable=no, so block zoom gestures directly.
+    // Pinch (Safari fires proprietary gesture events for it):
+    for (const ev of ['gesturestart', 'gesturechange', 'gestureend'])
+      document.addEventListener(ev, e => e.preventDefault());
+    // Multi-finger page zoom/pan fallback:
+    document.addEventListener('touchmove', e => {
+      if (e.touches.length > 1) e.preventDefault();
+    }, { passive: false });
+    // Double-tap zoom, canvas only (tray buttons keep fast repeat-taps):
+    let lastTap = 0;
+    document.addEventListener('touchend', e => {
+      if (e.target !== cv) return;
+      const now = Date.now();
+      if (now - lastTap < 350) e.preventDefault();
+      lastTap = now;
+    }, { passive: false });
     return this;
   },
 
