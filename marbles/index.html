@@ -195,9 +195,6 @@ Kit.loadMatter().then(Matter => {
           Sound.tone(p.data.note, 0.5, 'sine', 0.12);
           Sound.tone(p.data.note * 2, 0.3, 'sine', 0.04);
         }
-        if (p.type === 'tramp' && (pair.bodyA === p.data.body || pair.bodyB === p.data.body)){
-          p.data.squash = 1; Sound.boing();
-        }
       }
     }
   });
@@ -217,6 +214,17 @@ Kit.loadMatter().then(Matter => {
     /* part physics behaviors */
     for (const p of parts){
       if (p.type === 'spinner') Body.setAngularVelocity(p.data.body, p.data.dir * 0.09);
+      if (p.type === 'tramp'){
+        for (const m of marbles){
+          m.trampCd = Math.max(0, (m.trampCd || 0) - dt);
+          const dx = m.position.x - p.x, dy = p.y - m.position.y;
+          if (m.trampCd <= 0 && Math.abs(dx) < 66 && dy > -8 && dy < 34 && m.velocity.y > -2){
+            Body.setVelocity(m, { x: m.velocity.x * 0.5 + dx * 0.05, y: -13.5 });
+            m.trampCd = 0.5;
+            p.data.squash = 1; Sound.boing();
+          }
+        }
+      }
       if (p.type === 'fan'){
         for (const m of marbles){
           const dx = m.position.x - p.x, dy = p.y - m.position.y; // dy: height above fan
