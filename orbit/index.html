@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Orbit Lab</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* Orbit Lab. Place planets and suns, then fling rockets and watch gravity
+   bend their paths. Full laps earn a starburst. Slow landings plant a flag.
+   The black hole eats everything with a shloop. */
+Kit.init('🪐', 'Orbit Lab');
+const ctx = Kit.ctx;
+
+const bodies = [];   // {kind:'planet'|'sun'|'hole', x, y, r, gm, hue, ph}
+const rockets = [];  // {x,y,vx,vy,trail:[],tint,landed,landT,orbit:{body,acc,lastA},swirl}
+const bursts = [];   // celebration particles
+const stars = [];
+let tool = 'rocket', aim = null, trayEl = null;
+const TINTS = ['#FF6FA5', '#38BDF8', '#4ADE80', '#FFD24A', '#B79CFF', '#FF9330'];
+
+function buildStars(){
+  stars.length = 0;
+  for (let i = 0; i < 110; i++)
+    stars.push({ x: rand(0, Kit.W), y: rand(0, Kit.H), r: rand(1, 2.4), ph: rand(0, 6) });
+}
+Kit.onResize = buildStars; buildStars();
+
+function addBody(kind, x, y){
+  if (bodies.length >= 6){ Sound.click(); return; }
+  const spec = {
+    planet: { r: rand(30, 48), gmk: 5200 },
+    sun:    { r: rand(56, 70), gmk: 14000 },
+    hole:   { r: 24, gmk: 26000 }
+  }[kind];
+  bodies.push({ kind, x, y, r: spec.r, gm: spec.r * spec.gmk, hue: rand(0, 360), ph: rand(0, 6) });
+  Sound.thud();
+}
+function eraseAt(x, y){
+  for (let i = bodies.length - 1; i >= 0; i--){
+    if (Math.hypot(x - bodies[i].x, y - bodies[i].y) < bodies[i].r + 18){
+      bodies.splice(i, 1); Sound.crumble(); return;
+    }
+  }
+  for (let i = rockets.length - 1; i >= 0; i--){
+    if (Math.hypot(x - rockets[i].x, y - rockets[i].y) < 30){
+      rockets.splice(i, 1); Sound.crumble(); return;
+    }
+  }
+}
+
+function selectTool(id){
+  tool = id;
+  trayEl.querySelectorAll('.kit-tool').forEach(b => b.classList.toggle('active', b.title === id));
+}
+trayEl = Kit.tray([
+  { icon: '🚀', id: 'rocket' }, { icon: '🪐', id: 'planet' }, { icon: '⭐', id: 'sun' },
+  { icon: '🕳️', id: 'hole' }, { icon: '🧽', id: 'erase' }, { icon: '🧹', id: 'reset' }
+], id => {
+  if (id === 'reset'){
+    bodies.length = 0; rockets.length = 0; bursts.length = 0;
+    Sound.ding(); selectTool(tool); return;
+  }
+  tool = id;
+}, 'rocket');
+
+Kit.canvas.addEventListener('pointerdown', e => {
+  if (e.clientY > Kit.H - 100) return;
+  if (tool === 'rocket') aim = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, pid: e.pointerId };
+  else if (tool === 'erase') eraseAt(e.clientX, e.clientY);
+  else { addBody(tool, e.clientX, e.clientY); selectTool('rocket'); }  // one per pick
+});
+Kit.canvas.addEventListener('pointermove', e => {
+  if (aim && e.pointerId === aim.pid){ aim.x = e.clientX; aim.y = e.clientY; }
+  if (tool === 'erase' && Kit.pointers.has(e.pointerId)) eraseAt(e.clientX, e.clientY);
+});
+Kit.canvas.addEventListener('pointerup', e => {
+  if (aim && e.pointerId === aim.pid){
+    const dx = aim.x0 - aim.x, dy = aim.y0 - aim.y;   // pull back, fly forward
+    if (Math.hypot(dx, dy) > 18) launch(aim.x0, aim.y0, dx * 2.4, dy * 2.4);
+    aim = null;
+  }
+});
+function launch(x, y, vx, vy){
+  rockets.push({ x, y, vx, vy, trail: [], tint: pick(TINTS),
+    landed: null, landT: 0, orbit: null, swirl: 0 });
+  if (rockets.length > 8) rockets.shift();
+  Sound.whoosh();
+}
+function celebrate(x, y){
+  Sound.ding(); Sound.tone(1047, 0.4, 'sine', 0.08);
+  for (let k = 0; k < 14; k++)
+    bursts.push({ x, y, vx: rand(-160, 160), vy: rand(-160, 160), e: pick(['⭐','🌟','✨']), a: 1.2 });
+}
+
+Kit.loop((dt, t) => {
+  /* ---------- physics ---------- */
+  for (let ri = rockets.length - 1; ri >= 0; ri--){
+    const rk = rockets[ri];
+    if (rk.swirl > 0){ // being eaten by the black hole
+      rk.swirl -= dt;
+      if (rk.swirl <= 0) rockets.splice(ri, 1);
+      continue;
+    }
+    if (rk.landed){
+      rk.landT += dt;
+      if (rk.landT > 3.5){ // auto-relaunch straight up from the surface
+        const b = rk.landed.body;
+        const ang = rk.landed.ang;
+        rk.x = b.x + Math.cos(ang) * (b.r + 14); rk.y = b.y + Math.sin(ang) * (b.r + 14);
+        rk.vx = Math.cos(ang) * 260; rk.vy = Math.sin(ang) * 260;
+        rk.landed = null; rk.landT = 0; rk.trail.length = 0;
+        Sound.whoosh();
+        for (let k = 0; k < 5; k++)
+          bursts.push({ x: rk.x, y: rk.y, vx: rand(-60, 60), vy: rand(-60, 60), e: '✨', a: 0.8 });
+      }
+      continue;
+    }
+    // gravity from every body (softened inverse square)
+    for (const b of bodies){
+      const dx = b.x - rk.x, dy = b.y - rk.y;
+      const d2 = dx * dx + dy * dy + 900;
+      const d = Math.sqrt(d2);
+      const a = b.gm / d2;
+      rk.vx += (dx / d) * a * dt * 60;
+      rk.vy += (dy / d) * a * dt * 60;
+    }
+    rk.x += rk.vx * dt; rk.y += rk.vy * dt;
+    // trail
+    rk.trail.push({ x: rk.x, y: rk.y });
+    if (rk.trail.length > 130) rk.trail.shift();
+    // soft screen wrap keeps rockets in play
+    if (rk.x < -40) rk.x = Kit.W + 40; if (rk.x > Kit.W + 40) rk.x = -40;
+    if (rk.y < -40) rk.y = Kit.H + 40; if (rk.y > Kit.H + 40) rk.y = -40;
+
+    // interactions with bodies
+    for (const b of bodies){
+      const dx = rk.x - b.x, dy = rk.y - b.y;
+      const d = Math.hypot(dx, dy);
+      if (b.kind === 'hole' && d < b.r + 14){
+        rk.swirl = 0.6; rk.holeAt = { x: b.x, y: b.y };
+        Sound.tone(300, 0.5, 'sine', 0.1, -240); // shloop
+        break;
+      }
+      if (b.kind !== 'hole' && d < b.r + 12){
+        const speed = Math.hypot(rk.vx, rk.vy);
+        if (speed < 150){
+          // gentle touchdown: stand on the surface, plant a flag
+          rk.landed = { body: b, ang: Math.atan2(dy, dx) };
+          rk.landT = 0; Sound.ding();
+        } else {
+          // bounce off with dust
+          const nx = dx / d, ny = dy / d;
+          const dot = rk.vx * nx + rk.vy * ny;
+          rk.vx = (rk.vx - 2 * dot * nx) * 0.5;
+          rk.vy = (rk.vy - 2 * dot * ny) * 0.5;
+          rk.x = b.x + nx * (b.r + 13); rk.y = b.y + ny * (b.r + 13);
+          Sound.thud();
+          for (let k = 0; k < 4; k++)
+            bursts.push({ x: rk.x, y: rk.y, vx: nx * 80 + rand(-50, 50), vy: ny * 80 + rand(-50, 50), e: '💨', a: 0.7 });
+        }
+        break;
+      }
+    }
+    // orbit detection: accumulate angle swept around the nearest body
+    if (!rk.landed && !rk.swirl){
+      let near = null, nd = 1e9;
+      for (const b of bodies){
+        const d = Math.hypot(rk.x - b.x, rk.y - b.y);
+        if (d < nd){ nd = d; near = b; }
+      }
+      if (near && nd < 420){
+        const a = Math.atan2(rk.y - near.y, rk.x - near.x);
+        if (rk.orbit && rk.orbit.body === near){
+          let da = a - rk.orbit.lastA;
+          while (da > Math.PI) da -= 6.283; while (da < -Math.PI) da += 6.283;
+          rk.orbit.acc += da; rk.orbit.lastA = a;
+          if (Math.abs(rk.orbit.acc) > 6.283){
+            rk.orbit.acc = 0;
+            celebrate(near.x, near.y - near.r - 30);
+          }
+        } else rk.orbit = { body: near, acc: 0, lastA: a };
+      } else rk.orbit = null;
+    }
+  }
+
+  /* ---------- render ---------- */
+  const g = ctx.createLinearGradient(0, 0, 0, Kit.H);
+  g.addColorStop(0, '#0b1026'); g.addColorStop(1, '#1b1040');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, Kit.W, Kit.H);
+  for (const s of stars){
+    ctx.globalAlpha = 0.35 + 0.55 * Math.abs(Math.sin(t * 1.3 + s.ph));
+    ctx.fillStyle = '#cfd8ff';
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.28); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  for (const b of bodies){
+    if (b.kind === 'sun'){
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,200,60,.18)';
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.7 + Math.sin(t * 2 + b.ph) * 6, 0, 6.28); ctx.fill();
+      const sg = ctx.createRadialGradient(b.x - b.r * 0.3, b.y - b.r * 0.3, 4, b.x, b.y, b.r);
+      sg.addColorStop(0, '#FFF3B0'); sg.addColorStop(1, '#FFB020');
+      ctx.fillStyle = sg;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 6.28); ctx.fill();
+      ctx.restore();
+    } else if (b.kind === 'hole'){
+      ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(t * 3);
+      for (let k = 3; k >= 0; k--){
+        ctx.strokeStyle = 'hsla(268, 80%, ' + (35 + k * 12) + '%, .8)';
+        ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(0, 0, b.r + 6 + k * 9, k, k + 4.4); ctx.stroke();
+      }
+      ctx.fillStyle = '#05030c';
+      ctx.beginPath(); ctx.arc(0, 0, b.r, 0, 6.28); ctx.fill();
+      ctx.restore();
+    } else {
+      const pg = ctx.createRadialGradient(b.x - b.r * 0.35, b.y - b.r * 0.35, 4, b.x, b.y, b.r);
+      pg.addColorStop(0, 'hsl(' + b.hue + ', 75%, 72%)');
+      pg.addColorStop(1, 'hsl(' + b.hue + ', 65%, 42%)');
+      ctx.fillStyle = pg;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 6.28); ctx.fill();
+      // ring on some planets
+      if (b.hue % 2 < 1){
+        ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(0.4);
+        ctx.strokeStyle = 'hsla(' + b.hue + ', 70%, 80%, .7)'; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.ellipse(0, 0, b.r * 1.5, b.r * 0.45, 0, 0, 6.28); ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+
+  for (const rk of rockets){
+    // trail
+    for (let i = 1; i < rk.trail.length; i++){
+      ctx.globalAlpha = i / rk.trail.length * 0.6;
+      ctx.strokeStyle = rk.tint; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(rk.trail[i - 1].x, rk.trail[i - 1].y);
+      ctx.lineTo(rk.trail[i].x, rk.trail[i].y); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    if (rk.swirl > 0){
+      const k = rk.swirl / 0.6;
+      const ang = (1 - k) * 12;
+      const d = 30 * k;
+      drawEmoji(ctx, '🚀', rk.holeAt.x + Math.cos(ang) * d, rk.holeAt.y + Math.sin(ang) * d, 34 * k, ang);
+      continue;
+    }
+    if (rk.landed){
+      const b = rk.landed.body, a = rk.landed.ang;
+      const lx = b.x + Math.cos(a) * (b.r + 12), ly = b.y + Math.sin(a) * (b.r + 12);
+      drawEmoji(ctx, '🚀', lx, ly, 36, a + Math.PI / 2);
+      if (rk.landT > 0.6)
+        drawEmoji(ctx, '🚩', b.x + Math.cos(a + 0.35) * (b.r + 16), b.y + Math.sin(a + 0.35) * (b.r + 16), 22, a + Math.PI / 2);
+      continue;
+    }
+    drawEmoji(ctx, '🚀', rk.x, rk.y, 38, Math.atan2(rk.vy, rk.vx) + Math.PI / 4);
+    if (Math.random() < 0.4)
+      bursts.push({ x: rk.x, y: rk.y, vx: -rk.vx * 0.1, vy: -rk.vy * 0.1, e: pick(['✨','🔥']), a: 0.4 });
+  }
+
+  // aiming arrow
+  if (aim){
+    const dx = aim.x0 - aim.x, dy = aim.y0 - aim.y;
+    ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.setLineDash([4, 14]);
+    ctx.beginPath(); ctx.moveTo(aim.x0, aim.y0); ctx.lineTo(aim.x0 + dx, aim.y0 + dy); ctx.stroke();
+    ctx.setLineDash([]);
+    drawEmoji(ctx, '🚀', aim.x0, aim.y0, 40, Math.atan2(dy, dx) + Math.PI / 4);
+    const power = Math.min(1, Math.hypot(dx, dy) / 220);
+    ctx.fillStyle = 'rgba(255,210,74,' + (0.35 + power * 0.5) + ')';
+    ctx.beginPath(); ctx.arc(aim.x0 + dx, aim.y0 + dy, 8 + power * 12, 0, 6.28); ctx.fill();
+  }
+
+  for (let i = bursts.length - 1; i >= 0; i--){
+    const p = bursts[i];
+    p.x += p.vx * dt; p.y += p.vy * dt; p.a -= dt * 1.1;
+    if (p.a <= 0){ bursts.splice(i, 1); continue; }
+    drawEmoji(ctx, p.e, p.x, p.y, 20, 0, false, Math.min(1, p.a));
+  }
+
+  // gentle hint when the field is empty
+  if (!bodies.length && !rockets.length){
+    ctx.globalAlpha = 0.5 + Math.sin(t * 2) * 0.2;
+    drawEmoji(ctx, '🪐', Kit.W / 2, Kit.H * 0.4, 60);
+    drawEmoji(ctx, '👆', Kit.W / 2, Kit.H * 0.4 + 70 + Math.sin(t * 3) * 6, 30);
+    ctx.globalAlpha = 1;
+  }
+});
+</script>
+</body>
+</html>
