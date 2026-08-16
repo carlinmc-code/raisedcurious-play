@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Marble Run 2</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* Marble Run 2: a snap-together construction kit, like the plastic ones.
+   Grid-snapped ramps, stackable tower blocks, paddle wheels, and the
+   signature vortex bowl that spirals marbles down through its center.
+   Tap with the marble tool to drop a marble exactly where you want. */
+Kit.init('🎢', 'Marble Run 2');
+
+Kit.loadMatter().then(Matter => {
+  const { Engine, Bodies, Body, Composite } = Matter;
+  const engine = Engine.create();
+  const world = engine.world;
+  const ctx = Kit.ctx;
+
+  const CS = 72;                       // snap grid cell
+  const MR = 14;                       // marble radius
+  const marbles = [], parts = [];
+  let tool = 'marble', trayEl = null;
+  const PLASTIC = ['rgba(255,111,165,.75)', 'rgba(56,189,248,.75)', 'rgba(74,222,128,.75)',
+                   'rgba(255,210,74,.8)', 'rgba(183,156,255,.75)', 'rgba(255,147,48,.78)'];
+  const TINTS = ['#FF6FA5', '#38BDF8', '#4ADE80', '#FFD24A', '#B79CFF'];
+
+  const snap = v => Math.round(v / CS) * CS;
+  function floorY(){ return Kit.H - 40; }
+
+  let ground = null, walls = [];
+  function buildBounds(){
+    if (ground) Composite.remove(world, [ground, ...walls]);
+    ground = Bodies.rectangle(Kit.W / 2, floorY() + 40, Kit.W * 3, 80, { isStatic: true });
+    walls = [
+      Bodies.rectangle(-30, Kit.H / 2, 60, Kit.H * 2, { isStatic: true }),
+      Bodies.rectangle(Kit.W + 30, Kit.H / 2, 60, Kit.H * 2, { isStatic: true })
+    ];
+    Composite.add(world, [ground, ...walls]);
+  }
+  Kit.onResize = buildBounds; buildBounds();
+
+  /* ---------------- pieces ---------------- */
+  function addPart(p){
+    for (const b of p.bodies) Composite.add(world, b);
+    parts.push(p); Sound.click();
+    if (parts.length > 40) removePart(parts[0]);
+  }
+  function removePart(p){
+    for (const b of p.bodies) Composite.remove(world, b);
+    const i = parts.indexOf(p); if (i >= 0) parts.splice(i, 1);
+  }
+  function eraseAt(x, y){
+    for (let i = parts.length - 1; i >= 0; i--){
+      const p = parts[i];
+      const hitBody = p.bodies.length && Matter.Query.point(p.bodies, { x, y }).length;
+      if (hitBody || Math.hypot(x - p.x, y - p.y) < p.r){
+        removePart(p); Sound.crumble(); return;
+      }
+    }
+    for (let i = marbles.length - 1; i >= 0; i--){
+      if (Math.hypot(x - marbles[i].position.x, y - marbles[i].position.y) < 26){
+        Composite.remove(world, marbles[i]); marbles.splice(i, 1); Sound.crumble(); return;
+      }
+    }
+  }
+
+  function addRamp(x, y, dir){          // dir: 1 slopes down-right, -1 down-left
+    x = snap(x); y = snap(y);
+    const ang = 0.26 * dir;
+    const b = Bodies.rectangle(x, y, CS + 18, 12, {
+      isStatic: true, angle: ang, friction: 0.002, chamfer: { radius: 6 }
+    });
+    addPart({ type: 'ramp', x, y, r: CS * 0.6, dir, tint: pick(PLASTIC), bodies: [b], data: { body: b } });
+  }
+  function addBlock(x, y){
+    x = snap(x); y = snap(y);
+    const b = Bodies.rectangle(x, y, CS - 6, CS - 6, { isStatic: true, chamfer: { radius: 10 } });
+    addPart({ type: 'block', x, y, r: CS * 0.55, tint: pick(PLASTIC), bodies: [b], data: {} });
+  }
+  function addWheel(x, y){
+    x = snap(x); y = snap(y);
+    const a = Bodies.rectangle(x, y, CS * 1.5, 12, { chamfer: { radius: 6 }, density: 0.02 });
+    const c = Bodies.rectangle(x, y, 12, CS * 1.5, { chamfer: { radius: 6 }, density: 0.02 });
+    const wb = Body.create({ parts: [a, c] });
+    const pin = Matter.Constraint.create({ pointA: { x, y }, bodyB: wb, stiffness: 1, length: 0 });
+    Composite.add(world, pin);
+    const dir = parts.filter(p => p.type === 'wheel').length % 2 ? -1 : 1;
+    addPart({ type: 'wheel', x, y, r: CS * 0.8, tint: pick(PLASTIC), bodies: [wb], data: { body: wb, pin, dir } });
+  }
+  function addVortex(x, y){
+    x = snap(x); y = snap(y);
+    // bowl rim: two static arc walls built from short segments, gap at the very bottom
+    const R = CS * 0.95, segs = [];
+    for (let k = 0; k < 10; k++){
+      const a1 = 0.18 + (k / 10) * (Math.PI - 0.36);           // segments around the bowl's lower arc
+      const a = a1;
+      const sx = x + Math.cos(a) * R, sy = y - CS * 0.25 + Math.sin(a) * R;
+      if (Math.abs(Math.cos(a)) < 0.22) continue;              // leave the center hole open
+      segs.push(Bodies.rectangle(sx, sy, R * 0.36, 10, {
+        isStatic: true, angle: a + Math.PI / 2, friction: 0.001, chamfer: { radius: 5 }
+      }));
+    }
+    addPart({ type: 'vortex', x, y: y - CS * 0.25, r: R + 14, tint: pick(PLASTIC), bodies: segs, data: { R } });
+  }
+
+  /* ---------------- marbles ---------------- */
+  function dropMarble(x, y){
+    const b = Bodies.circle(x, y, MR, { restitution: 0.3, friction: 0.004, density: 0.004 });
+    b.tint = pick(TINTS);
+    Composite.add(world, b); marbles.push(b);
+    Sound.pop();
+    if (marbles.length > 40) Composite.remove(world, marbles.shift());
+  }
+
+  /* ---------------- tray + input ---------------- */
+  function selectTool(id){
+    tool = id;
+    trayEl.querySelectorAll('.kit-tool').forEach(b => b.classList.toggle('active', b.title === id));
+  }
+  const STAMPS = {
+    rampR: (x, y) => addRamp(x, y, 1), rampL: (x, y) => addRamp(x, y, -1),
+    block: addBlock, wheel: addWheel, vortex: addVortex
+  };
+  trayEl = Kit.tray([
+    { icon: '🔵', id: 'marble' }, { icon: '↘️', id: 'rampR' }, { icon: '↙️', id: 'rampL' },
+    { icon: '🟪', id: 'block' }, { icon: '🌀', id: 'vortex' }, { icon: '🎡', id: 'wheel' },
+    { icon: '🧽', id: 'erase' }, { icon: '🧹', id: 'reset' }
+  ], id => {
+    if (id === 'reset'){
+      for (const m of marbles) Composite.remove(world, m);
+      marbles.length = 0;
+      while (parts.length) removePart(parts[0]);
+      Sound.ding(); selectTool(tool); return;
+    }
+    tool = id;
+  }, 'marble');
+
+  Kit.canvas.addEventListener('pointerdown', e => {
+    if (e.clientY > Kit.H - 100 || e.clientY < 60) return;
+    if (tool === 'marble') dropMarble(e.clientX, e.clientY);
+    else if (tool === 'erase') eraseAt(e.clientX, e.clientY);
+    else if (STAMPS[tool]) STAMPS[tool](e.clientX, e.clientY);
+  });
+  Kit.canvas.addEventListener('pointermove', e => {
+    if (tool === 'erase' && Kit.pointers.has(e.pointerId)) eraseAt(e.clientX, e.clientY);
+  });
+
+  Matter.Events.on(engine, 'collisionStart', ev => {
+    for (const pair of ev.pairs){
+      const s = Math.hypot(pair.bodyA.velocity.x - pair.bodyB.velocity.x,
+                           pair.bodyA.velocity.y - pair.bodyB.velocity.y);
+      if (s > 7) Sound.thud();
+    }
+  });
+
+  /* ---------------- loop ---------------- */
+  Kit.loop((dt, t) => {
+    for (const p of parts)
+      if (p.type === 'wheel') Body.setAngularVelocity(p.data.body, p.data.dir * 0.08);
+
+    // vortex capture: a marble entering the bowl gets swept into a spiral
+    for (const p of parts){
+      if (p.type !== 'vortex') continue;
+      for (const m of marbles){
+        if (m.vortex) continue;
+        const dx = m.position.x - p.x, dy = m.position.y - p.y;
+        const d = Math.hypot(dx, dy);
+        if (d < p.data.R * 0.85 && dy > -p.data.R * 0.4 && m.velocity.y > -1){
+          m.vortex = { p, ang: Math.atan2(dy, dx), rad: Math.max(d, 30), t: 0 };
+          Sound.whoosh();
+        }
+      }
+    }
+    for (const m of marbles){
+      if (!m.vortex) continue;
+      const v = m.vortex;
+      v.t += dt;
+      v.rad = Math.max(6, v.rad - dt * 34);
+      v.ang += dt * (2.2 + (1 - v.rad / (v.p.data.R || 70)) * 9);   // faster as it tightens
+      Body.setPosition(m, { x: v.p.x + Math.cos(v.ang) * v.rad,
+                            y: v.p.y - 6 + Math.sin(v.ang) * v.rad * 0.45 });
+      Body.setVelocity(m, { x: 0, y: 0 });
+      if (v.rad <= 7){
+        Body.setPosition(m, { x: v.p.x, y: v.p.y + 26 });
+        Body.setVelocity(m, { x: 0, y: 6 });
+        m.vortex = null;
+        Sound.tone(700, 0.2, 'sine', 0.1, -350);
+      }
+    }
+
+    Engine.update(engine, Math.min(dt, 0.033) * 1000);
+
+    /* ---------------- render: playroom tabletop ---------------- */
+    const g = ctx.createLinearGradient(0, 0, 0, Kit.H);
+    g.addColorStop(0, '#FBEFD9'); g.addColorStop(1, '#F3D9B0');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, Kit.W, Kit.H);
+    // wooden table
+    ctx.fillStyle = '#C48A4A'; ctx.fillRect(0, floorY(), Kit.W, Kit.H - floorY());
+    ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = 2;
+    for (let x = 0; x < Kit.W; x += 90){
+      ctx.beginPath(); ctx.moveTo(x, floorY()); ctx.lineTo(x, Kit.H); ctx.stroke();
+    }
+    // snap grid dots while building
+    if (tool !== 'marble' && tool !== 'erase'){
+      ctx.fillStyle = 'rgba(120,90,50,.22)';
+      for (let y = snap(80); y < floorY(); y += CS)
+        for (let x = snap(40); x < Kit.W; x += CS){
+          ctx.beginPath(); ctx.arc(x, y, 3, 0, 6.28); ctx.fill();
+        }
+    }
+
+    for (const p of parts){
+      ctx.strokeStyle = 'rgba(0,0,0,.2)'; ctx.lineWidth = 3;
+      if (p.type === 'ramp'){
+        const b = p.data.body;
+        ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
+        ctx.fillStyle = p.tint;
+        ctx.beginPath(); ctx.roundRect(-(CS + 18) / 2, -6, CS + 18, 12, 6); ctx.fill(); ctx.stroke();
+        // little rim on the high end, like the plastic tracks
+        ctx.beginPath(); ctx.roundRect(p.dir > 0 ? -(CS + 18) / 2 : (CS + 18) / 2 - 10, -18, 10, 14, 4);
+        ctx.fill(); ctx.stroke();
+        ctx.restore();
+      } else if (p.type === 'block'){
+        ctx.fillStyle = p.tint;
+        ctx.beginPath(); ctx.roundRect(p.x - (CS - 6) / 2, p.y - (CS - 6) / 2, CS - 6, CS - 6, 10);
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,.35)';
+        ctx.beginPath(); ctx.arc(p.x - CS * 0.18, p.y - CS * 0.18, 8, 0, 6.28); ctx.fill();
+      } else if (p.type === 'wheel'){
+        const b = p.data.body;
+        ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
+        ctx.fillStyle = p.tint;
+        for (const rot of [0, Math.PI / 2]){
+          ctx.save(); ctx.rotate(rot);
+          ctx.beginPath(); ctx.roundRect(-CS * 0.75, -6, CS * 1.5, 12, 6); ctx.fill(); ctx.stroke();
+          ctx.restore();
+        }
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(0, 0, 10, 0, 6.28); ctx.fill(); ctx.stroke();
+        ctx.restore();
+      } else if (p.type === 'vortex'){
+        // translucent bowl with a swirl
+        ctx.fillStyle = p.tint;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, p.data.R, p.data.R * 0.5, 0, 0, Math.PI);
+        ctx.lineTo(p.x - 16, p.y + p.data.R * 0.5 - 4);
+        ctx.fill(); ctx.stroke();
+        ctx.save(); ctx.translate(p.x, p.y + 4); ctx.rotate(t * 1.6);
+        ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 3;
+        for (let k = 0; k < 2; k++){
+          ctx.beginPath(); ctx.arc(0, 0, 18 + k * 16, k * 2, k * 2 + 3.6); ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+
+    for (const m of marbles){
+      ctx.fillStyle = m.tint;
+      ctx.beginPath(); ctx.arc(m.position.x, m.position.y, MR, 0, 6.28); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.75)';
+      ctx.beginPath(); ctx.arc(m.position.x - 4, m.position.y - 4, 4.5, 0, 6.28); ctx.fill();
+    }
+
+    // marble-tool hint when the table is empty
+    if (!parts.length && !marbles.length){
+      ctx.globalAlpha = 0.55 + Math.sin(t * 2) * 0.2;
+      drawEmoji(ctx, '🟪', Kit.W / 2, Kit.H * 0.55, 52);
+      drawEmoji(ctx, '👆', Kit.W / 2, Kit.H * 0.55 + 62 + Math.sin(t * 3) * 6, 28);
+      ctx.globalAlpha = 1;
+    }
+  });
+});
+</script>
+</body>
+</html>
