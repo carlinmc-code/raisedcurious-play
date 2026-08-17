@@ -219,7 +219,7 @@ Kit.loadMatter().then(Matter => {
           m.trampCd = Math.max(0, (m.trampCd || 0) - dt);
           const dx = m.position.x - p.x, dy = p.y - m.position.y;
           if (m.trampCd <= 0 && Math.abs(dx) < 66 && dy > -8 && dy < 34 && m.velocity.y > -2){
-            Body.setVelocity(m, { x: m.velocity.x * 0.5 + dx * 0.05, y: -13.5 });
+            Body.setVelocity(m, { x: m.velocity.x * 0.5 + dx * 0.05, y: -12 });
             m.trampCd = 0.5;
             p.data.squash = 1; Sound.boing();
           }
