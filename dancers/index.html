@@ -22,6 +22,29 @@ let toys = [], sparks = [], tool = 'swan';
 let beat = 0, beatT = 0, step = 0;            // one shared beat for the whole room
 const BEAT = 0.34;
 
+/* ---------- animal voices ----------
+   Each species gets its own call, built from kit.js tone() bursts. One
+   room-wide throttle keeps a pile-up of bumping toys from turning into noise;
+   a deliberate action (placing a toy) ignores it. */
+let voiceAt = 0;
+function say(kind, vol, force){
+  vol = vol === undefined ? 1 : vol;
+  const now = performance.now();
+  if (!force && now - voiceAt < 240) return;
+  voiceAt = now;
+  if (kind === 'duck'){                       // quack, quack
+    Sound.tone(430, 0.13, 'sawtooth', 0.075 * vol, -180);
+    setTimeout(() => Sound.tone(378, 0.15, 'sawtooth', 0.06 * vol, -150), 150);
+  } else if (kind === 'chick'){               // bok bok bawwk
+    Sound.tone(920, 0.05, 'square', 0.05 * vol, -260);
+    setTimeout(() => Sound.tone(860, 0.05, 'square', 0.05 * vol, -240), 110);
+    setTimeout(() => Sound.tone(700, 0.20, 'sawtooth', 0.06 * vol, -380), 230);
+  } else {                                    // swan: a little two-note bugle
+    Sound.tone(500, 0.15, 'triangle', 0.07 * vol, 200);
+    setTimeout(() => Sound.tone(760, 0.24, 'triangle', 0.055 * vol, -160), 140);
+  }
+}
+
 /* ---------- toys ---------- */
 function makeToy(kind, x, y){
   return {
@@ -46,7 +69,8 @@ function placeToy(x, y){
   const t = makeToy(tool, clamp(x, 60, Kit.W - 60), clamp(y, 110, Kit.H - 110));
   t.squash = 1;
   toys.push(t);
-  Sound.pop();
+  Sound.pop();                                // the tap itself
+  setTimeout(() => say(t.kind, 1, true), 90);   // then it introduces itself
   burst(t.x, t.y, 10);
 }
 function toyAt(x, y){
@@ -152,9 +176,7 @@ function update(dt){
     // voice: an occasional quack/cluck, spaced out so it never becomes noise
     if (t.voiceCd <= 0){
       t.voiceCd = rand(5, 11);
-      if (t.kind === 'duck') Sound.tone(rand(380, 460), 0.13, 'sawtooth', 0.05, -140);
-      else if (t.kind === 'chick') Sound.tone(rand(700, 850), 0.09, 'square', 0.035, 180);
-      else Sound.tone(rand(560, 640), 0.18, 'sine', 0.045, 120);
+      say(t.kind, 0.7);
     }
   }
 
@@ -168,8 +190,8 @@ function update(dt){
       const push = (min - d) / 2, nx = dx / d, ny = dy / d;
       if (!a.grabbed){ a.x -= nx * push; a.y -= ny * push; }
       if (!b.grabbed){ b.x += nx * push; b.y += ny * push; }
-      if (a.on && !a.grabbed){ a.a = Math.atan2(-ny, -nx) + rand(-0.6, 0.6); bump(a); }
-      if (b.on && !b.grabbed){ b.a = Math.atan2(ny, nx) + rand(-0.6, 0.6); bump(b); }
+      if (a.on && !a.grabbed){ a.a = Math.atan2(-ny, -nx) + rand(-0.6, 0.6); bump(a, true); }
+      if (b.on && !b.grabbed){ b.a = Math.atan2(ny, nx) + rand(-0.6, 0.6); bump(b, true); }
     }
 
   for (const s of sparks){
@@ -178,11 +200,13 @@ function update(dt){
   }
   sparks = sparks.filter(s => s.age < s.life);
 }
-function bump(t){
+function bump(t, hard){
   if (t.bumpCd > 0) return;                   // cooldown so a corner never machine-guns
   t.bumpCd = 0.35; t.squash = 0.8;
-  burst(t.x, t.y, 6);
-  Sound.tone(rand(150, 210), 0.1, 'triangle', 0.07, -50);
+  burst(t.x, t.y, hard ? 9 : 6);
+  // the knock of plastic on plastic: harder and lower when two toys collide
+  Sound.tone(rand(140, 200), hard ? 0.14 : 0.1, 'triangle', hard ? 0.09 : 0.07, -60);
+  setTimeout(() => say(t.kind, hard ? 0.6 : 0.45), 60);
 }
 
 /* ---------- painting the toys ---------- */
