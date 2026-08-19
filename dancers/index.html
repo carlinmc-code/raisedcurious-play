@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Dancing Toys</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* Battery-toy playroom. Tap the floor to drop a wind-up animal, tap a toy to
+   switch it on or off, drag it anywhere. They waddle, bump off the walls and
+   each other, and flash along to one shared tune. Nothing to win. */
+Kit.init('\u{1F9A2}', 'Dancing Toys');
+const ctx = Kit.ctx;
+
+const KINDS = ['swan', 'duck', 'chick'];
+let toys = [], sparks = [], tool = 'swan';
+let beat = 0, beatT = 0, step = 0;            // one shared beat for the whole room
+const BEAT = 0.34;
+
+/* ---------- toys ---------- */
+function makeToy(kind, x, y){
+  return {
+    kind, x, y,
+    a: rand(0, Math.PI * 2),                  // heading
+    s: rand(0.9, 1.12),                       // chunky little size differences
+    on: true,
+    speed: kind === 'chick' ? 46 : kind === 'duck' ? 54 : 40,
+    wob: rand(0, 6.28),                       // waddle phase
+    lit: rand(0, 6.28),                       // LED colour phase
+    spin: 0,                                  // breakdance timer
+    nextTrick: rand(4, 9),
+    grabbed: false,
+    bumpCd: 0, voiceCd: rand(2, 6),
+    squash: 0
+  };
+}
+function radius(t){ return 44 * t.s; }
+
+function placeToy(x, y){
+  if (toys.length >= 14) return;              // the room gets loud enough
+  const t = makeToy(tool, clamp(x, 60, Kit.W - 60), clamp(y, 110, Kit.H - 110));
+  t.squash = 1;
+  toys.push(t);
+  Sound.pop();
+  burst(t.x, t.y, 10);
+}
+function toyAt(x, y){
+  for (let i = toys.length - 1; i >= 0; i--){
+    const t = toys[i];
+    if (Math.hypot(t.x - x, t.y - y) < radius(t) + 12) return t;
+  }
+  return null;
+}
+function toggleToy(t){
+  t.on = !t.on;
+  t.squash = 1;
+  if (t.on){ Sound.boing(); burst(t.x, t.y - 20, 8); }
+  else Sound.tone(190, 0.28, 'triangle', 0.09, -110);   // winding down
+}
+
+/* ---------- sparkles ---------- */
+function burst(x, y, n){
+  for (let i = 0; i < n; i++){
+    const a = rand(0, 6.28), sp = rand(40, 150);
+    sparks.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40,
+                  life: rand(0.4, 0.9), age: 0, hue: rand(0, 360) });
+  }
+}
+
+/* ---------- input: tap floor to place, tap toy to switch, drag to carry ---------- */
+const held = new Map();
+function pointers(){
+  for (const [id, p] of Kit.pointers){
+    if (held.has(id)) continue;
+    const t = toyAt(p.x, p.y);
+    held.set(id, { toy: t, dx: t ? t.x - p.x : 0, dy: t ? t.y - p.y : 0,
+                   sx: p.x, sy: p.y, moved: 0 });
+    if (t){ t.grabbed = true; Sound.squeak(); }
+  }
+  for (const [id, h] of held){
+    const p = Kit.pointers.get(id);
+    if (p){
+      h.moved = Math.max(h.moved, Math.hypot(p.x - h.sx, p.y - h.sy));
+      if (h.toy){ h.toy.x = p.x + h.dx; h.toy.y = p.y + h.dy; h.toy.squash = 0.45; }
+    } else {
+      if (h.toy){
+        h.toy.grabbed = false;
+        if (h.moved < 10) toggleToy(h.toy);
+      } else if (h.moved < 14){
+        placeToy(h.sx, h.sy);
+      }
+      held.delete(id);
+    }
+  }
+  Kit.taps.length = 0;                        // Kit collects these; nothing else drains them
+}
+
+/* ---------- the room's tune (one loop, however many toys) ---------- */
+const MELODY = [523, 659, 784, 659, 587, 784, 880, 784, 523, 659, 784, 1047, 880, 784, 659, 587];
+function music(){
+  const awake = toys.some(t => t.on && !t.grabbed);
+  if (!awake) return;
+  const n = MELODY[step % MELODY.length];
+  Sound.tone(n, 0.16, 'triangle', 0.05);
+  if (step % 4 === 0) Sound.tone(n / 2, 0.22, 'sine', 0.04);   // soft bass tap
+}
+
+/* ---------- update ---------- */
+function update(dt){
+  dt = clamp(dt, 0, 0.05);            // a bad clock must never poison beat/lit into NaN
+  beatT += dt;
+  if (beatT >= BEAT){ beatT -= BEAT; beat = 1; step++; music(); }
+  beat *= Math.pow(0.02, dt);                 // beat pulse decays between steps
+
+  for (const t of toys){
+    t.lit += dt * (t.on ? 2.6 : 0.15);
+    t.squash += (0 - t.squash) * Math.min(1, dt * 7);
+    t.bumpCd = Math.max(0, t.bumpCd - dt);
+    t.voiceCd -= dt;
+    if (!t.on || t.grabbed) continue;
+
+    t.wob += dt * 9;
+
+    // every few seconds, stop and do a little breakdance twist in place
+    t.nextTrick -= dt;
+    if (t.nextTrick <= 0 && t.spin <= 0){ t.spin = rand(1.1, 1.9); t.nextTrick = rand(5, 11); }
+    if (t.spin > 0){
+      t.spin -= dt;
+      t.a += dt * 7;
+      continue;                               // spins in place, no travel
+    }
+
+    // waddle: heading weaves side to side so the walk looks mechanical
+    const heading = t.a + Math.sin(t.wob) * 0.28;
+    t.x += Math.cos(heading) * t.speed * dt;
+    t.y += Math.sin(heading) * t.speed * dt;
+
+    // bump-and-go off the walls
+    const r = radius(t), top = 100, bot = Kit.H - 96;
+    let hit = false;
+    if (t.x < r){ t.x = r; t.a = Math.PI - t.a + rand(-0.5, 0.5); hit = true; }
+    if (t.x > Kit.W - r){ t.x = Kit.W - r; t.a = Math.PI - t.a + rand(-0.5, 0.5); hit = true; }
+    if (t.y < top + r){ t.y = top + r; t.a = -t.a + rand(-0.5, 0.5); hit = true; }
+    if (t.y > bot - r){ t.y = bot - r; t.a = -t.a + rand(-0.5, 0.5); hit = true; }
+    if (hit) bump(t);
+
+    // voice: an occasional quack/cluck, spaced out so it never becomes noise
+    if (t.voiceCd <= 0){
+      t.voiceCd = rand(5, 11);
+      if (t.kind === 'duck') Sound.tone(rand(380, 460), 0.13, 'sawtooth', 0.05, -140);
+      else if (t.kind === 'chick') Sound.tone(rand(700, 850), 0.09, 'square', 0.035, 180);
+      else Sound.tone(rand(560, 640), 0.18, 'sine', 0.045, 120);
+    }
+  }
+
+  // toys bumping each other
+  for (let i = 0; i < toys.length; i++)
+    for (let j = i + 1; j < toys.length; j++){
+      const a = toys[i], b = toys[j];
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+      const min = radius(a) + radius(b);
+      if (d >= min) continue;
+      const push = (min - d) / 2, nx = dx / d, ny = dy / d;
+      if (!a.grabbed){ a.x -= nx * push; a.y -= ny * push; }
+      if (!b.grabbed){ b.x += nx * push; b.y += ny * push; }
+      if (a.on && !a.grabbed){ a.a = Math.atan2(-ny, -nx) + rand(-0.6, 0.6); bump(a); }
+      if (b.on && !b.grabbed){ b.a = Math.atan2(ny, nx) + rand(-0.6, 0.6); bump(b); }
+    }
+
+  for (const s of sparks){
+    s.age += dt; s.vy += 320 * dt;
+    s.x += s.vx * dt; s.y += s.vy * dt;
+  }
+  sparks = sparks.filter(s => s.age < s.life);
+}
+function bump(t){
+  if (t.bumpCd > 0) return;                   // cooldown so a corner never machine-guns
+  t.bumpCd = 0.35; t.squash = 0.8;
+  burst(t.x, t.y, 6);
+  Sound.tone(rand(150, 210), 0.1, 'triangle', 0.07, -50);
+}
+
+/* ---------- painting the toys ---------- */
+function led(t, i){ return 'hsl(' + ((t.lit * 60 + i * 70) % 360) + ' 100% 62%)'; }
+
+function shine(x, y, r){                      // the glossy-plastic highlight
+  ctx.fillStyle = 'rgba(255,255,255,.45)';
+  ctx.beginPath(); ctx.ellipse(x, y, r * 0.34, r * 0.22, -0.6, 0, 6.28); ctx.fill();
+}
+function eye(x, y, r, look){
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.fill();
+  ctx.fillStyle = '#16203a';
+  ctx.beginPath(); ctx.arc(x + look * r * 0.3, y, r * 0.52, 0, 6.28); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x + look * r * 0.3 - r * .2, y - r * .22, r * 0.2, 0, 6.28); ctx.fill();
+}
+
+function drawSwan(t, pulse){
+  const s = t.s * 1.02;
+  // wheels
+  ctx.fillStyle = '#2a2f4a';
+  for (const wx of [-18, 18]){ ctx.beginPath(); ctx.arc(wx * s, 34 * s, 9 * s, 0, 6.28); ctx.fill(); }
+  // body
+  ctx.fillStyle = '#FF3E9A';
+  ctx.beginPath(); ctx.ellipse(0, 12 * s, 40 * s, 30 * s, 0, 0, 6.28); ctx.fill();
+  // tail fan
+  ctx.fillStyle = '#FF6FB8';
+  ctx.beginPath(); ctx.moveTo(-30 * s, 4 * s); ctx.lineTo(-52 * s, -12 * s);
+  ctx.lineTo(-46 * s, 12 * s); ctx.closePath(); ctx.fill();
+  // neck
+  ctx.strokeStyle = '#FF3E9A'; ctx.lineWidth = 15 * s; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(14 * s, 0);
+  ctx.quadraticCurveTo(40 * s, -22 * s, 30 * s, -46 * s); ctx.stroke();
+  // head
+  ctx.fillStyle = '#FF3E9A';
+  ctx.beginPath(); ctx.arc(29 * s, -54 * s, 15 * s, 0, 6.28); ctx.fill();
+  ctx.fillStyle = '#FF8A00';                  // beak
+  ctx.beginPath(); ctx.moveTo(42 * s, -54 * s); ctx.lineTo(58 * s, -49 * s);
+  ctx.lineTo(42 * s, -45 * s); ctx.closePath(); ctx.fill();
+  eye(34 * s, -58 * s, 5.4 * s, 1);
+  // little crown
+  ctx.fillStyle = '#FFD24A';
+  ctx.beginPath();
+  ctx.moveTo(20 * s, -68 * s); ctx.lineTo(24 * s, -78 * s); ctx.lineTo(28 * s, -70 * s);
+  ctx.lineTo(32 * s, -80 * s); ctx.lineTo(36 * s, -70 * s); ctx.lineTo(38 * s, -66 * s);
+  ctx.closePath(); ctx.fill();
+  // the faceted crystal dome on her back — spins and flashes
+  const R = 26 * s, spinA = t.lit * 1.5;
+  ctx.save(); ctx.translate(-6 * s, -22 * s); ctx.rotate(spinA);
+  for (let i = 0; i < 8; i++){
+    const a0 = (i / 8) * 6.28, a1 = ((i + 1) / 8) * 6.28;
+    ctx.fillStyle = i % 2 ? 'hsla(' + ((t.lit * 80 + i * 30) % 360) + ' 95% 68% / .82)'
+                          : 'hsla(' + ((t.lit * 80 + i * 30 + 40) % 360) + ' 90% 52% / .72)';
+    ctx.beginPath(); ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(a0) * R, Math.sin(a0) * R * 0.7);
+    ctx.lineTo(Math.cos(a1) * R, Math.sin(a1) * R * 0.7);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(255,255,255,' + (0.35 + pulse * 0.45) + ')';
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.3, 0, 6.28); ctx.fill();
+  ctx.restore();
+  shine(-14 * s, 2 * s, 30 * s);
+}
+
+function drawDuck(t, pulse){
+  const s = t.s, flap = Math.sin(t.wob * 0.7) * (t.on ? 0.7 : 0);
+  // body
+  ctx.fillStyle = '#FFD400';
+  ctx.beginPath(); ctx.ellipse(0, 10 * s, 38 * s, 32 * s, 0, 0, 6.28); ctx.fill();
+  // wings, flapping on the beat
+  for (const dir of [-1, 1]){
+    ctx.save(); ctx.translate(dir * 32 * s, 6 * s); ctx.rotate(dir * (0.5 + flap));
+    ctx.fillStyle = '#FFC000';
+    ctx.beginPath(); ctx.ellipse(0, 0, 20 * s, 11 * s, 0, 0, 6.28); ctx.fill();
+    ctx.fillStyle = led(t, dir > 0 ? 1 : 3);   // wing-tip LED
+    ctx.beginPath(); ctx.arc(dir * 15 * s, 0, 4.4 * s, 0, 6.28); ctx.fill();
+    ctx.restore();
+  }
+  // head
+  ctx.fillStyle = '#FFD400';
+  ctx.beginPath(); ctx.arc(6 * s, -30 * s, 23 * s, 0, 6.28); ctx.fill();
+  ctx.fillStyle = '#FF8A00';
+  ctx.beginPath(); ctx.ellipse(28 * s, -26 * s, 13 * s, 7 * s, 0.1, 0, 6.28); ctx.fill();
+  eye(2 * s, -36 * s, 7 * s, 1); eye(20 * s, -37 * s, 5 * s, 1);
+  // duckling tagging along
+  ctx.save(); ctx.translate(-40 * s, 18 * s + Math.sin(t.wob) * 3 * s);
+  ctx.fillStyle = '#FFE86B';
+  ctx.beginPath(); ctx.arc(0, 0, 13 * s, 0, 6.28); ctx.fill();
+  ctx.fillStyle = '#FF8A00';
+  ctx.beginPath(); ctx.moveTo(10 * s, 0); ctx.lineTo(19 * s, 2 * s); ctx.lineTo(10 * s, 4 * s);
+  ctx.closePath(); ctx.fill();
+  eye(2 * s, -3 * s, 3.4 * s, 1);
+  ctx.restore();
+  shine(-12 * s, 0, 28 * s);
+}
+
+function drawChick(t, pulse){
+  const s = t.s;
+  // orange feet
+  ctx.fillStyle = '#FF8A00';
+  for (const fx of [-16, 16]){
+    ctx.beginPath(); ctx.ellipse(fx * s, 40 * s, 11 * s, 6 * s, 0, 0, 6.28); ctx.fill();
+  }
+  // translucent red body, full of spinning disco lights
+  ctx.fillStyle = 'rgba(232,42,58,.86)';
+  ctx.beginPath(); ctx.ellipse(0, 10 * s, 36 * s, 32 * s, 0, 0, 6.28); ctx.fill();
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(0, 10 * s, 36 * s, 32 * s, 0, 0, 6.28); ctx.clip();
+  for (let i = 0; i < 7; i++){
+    const a = t.lit * 1.7 + i * 0.9, rr = (8 + (i % 3) * 10) * s;
+    ctx.fillStyle = led(t, i);
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * rr, 10 * s + Math.sin(a) * rr * 0.8, (3 + (i % 2) * 2.4) * s, 0, 6.28);
+    ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(255,255,255,' + (0.1 + pulse * 0.3) + ')';
+  ctx.fillRect(-36 * s, -22 * s, 72 * s, 64 * s);
+  ctx.restore();
+  // yellow polka dots on the shell
+  ctx.fillStyle = '#FFD24A';
+  for (const [dx, dy] of [[-20, 4], [0, 24], [20, 2], [-8, -12]]){
+    ctx.beginPath(); ctx.arc(dx * s, (dy + 8) * s, 3.4 * s, 0, 6.28); ctx.fill();
+  }
+  // blue collar
+  ctx.strokeStyle = '#2FA8FF'; ctx.lineWidth = 8 * s;
+  ctx.beginPath(); ctx.arc(0, -14 * s, 24 * s, 0.15, Math.PI - 0.15); ctx.stroke();
+  // yellow head
+  ctx.fillStyle = '#FFD400';
+  ctx.beginPath(); ctx.arc(0, -38 * s, 24 * s, 0, 6.28); ctx.fill();
+  ctx.fillStyle = '#E82A3A';                  // comb
+  for (const cx of [-8, 0, 8]){
+    ctx.beginPath(); ctx.arc(cx * s, -58 * s, 6 * s, 0, 6.28); ctx.fill();
+  }
+  ctx.fillStyle = '#FF8A00';
+  ctx.beginPath(); ctx.moveTo(20 * s, -36 * s); ctx.lineTo(36 * s, -32 * s);
+  ctx.lineTo(20 * s, -28 * s); ctx.closePath(); ctx.fill();
+  eye(-7 * s, -42 * s, 7 * s, 1); eye(11 * s, -43 * s, 6 * s, 1);
+  shine(-13 * s, -44 * s, 22 * s);
+}
+
+/* ---------- frame ---------- */
+Kit.onResize = () => {
+  for (const t of toys){
+    t.x = clamp(t.x, 60, Math.max(70, Kit.W - 60));
+    t.y = clamp(t.y, 110, Math.max(130, Kit.H - 110));
+  }
+};
+
+Kit.loop(dt => {
+  pointers();
+  update(dt);
+
+  // floor
+  const g = ctx.createLinearGradient(0, 0, 0, Kit.H);
+  g.addColorStop(0, '#171d3a'); g.addColorStop(1, '#0d1226');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, Kit.W, Kit.H);
+
+  // disco wash from whichever toys are switched on
+  const lit = toys.filter(t => t.on);
+  for (const t of lit){
+    const rg = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, 190 * t.s);
+    rg.addColorStop(0, 'hsla(' + ((t.lit * 60) % 360) + ' 100% 60% / ' + (0.16 + beat * 0.12) + ')');
+    rg.addColorStop(1, 'hsla(' + ((t.lit * 60) % 360) + ' 100% 60% / 0)');
+    ctx.fillStyle = rg; ctx.fillRect(t.x - 200 * t.s, t.y - 200 * t.s, 400 * t.s, 400 * t.s);
+  }
+
+  // toys, painted back to front
+  for (const t of [...toys].sort((a, b) => a.y - b.y)){
+    const pulse = t.on ? beat : 0;
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // shadow keeps them sitting on the floor
+    ctx.fillStyle = 'rgba(0,0,0,.28)';
+    ctx.beginPath(); ctx.ellipse(0, 44 * t.s, 34 * t.s, 9 * t.s, 0, 0, 6.28); ctx.fill();
+    const lean = t.on && !t.grabbed ? Math.sin(t.wob * 0.5) * 0.16 + (t.spin > 0 ? Math.sin(t.lit * 9) * 0.2 : 0) : 0;
+    ctx.rotate(lean);
+    const bob = t.on && !t.grabbed ? Math.abs(Math.sin(t.wob * 0.5)) * -6 * t.s : 0;
+    ctx.translate(0, bob);
+    ctx.scale(1 + t.squash * 0.16, 1 - t.squash * 0.16);
+    if (t.kind === 'swan') drawSwan(t, pulse);
+    else if (t.kind === 'duck') drawDuck(t, pulse);
+    else drawChick(t, pulse);
+    if (!t.on){                                // switched off: dim it down
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillStyle = 'rgba(10,14,30,.45)';
+      ctx.fillRect(-80 * t.s, -100 * t.s, 160 * t.s, 200 * t.s);
+    }
+    ctx.restore();
+  }
+
+  // sparkles
+  for (const s of sparks){
+    const k = 1 - s.age / s.life;
+    ctx.fillStyle = 'hsla(' + s.hue + ' 100% 68% / ' + k + ')';
+    ctx.beginPath(); ctx.arc(s.x, s.y, 4 * k + 1, 0, 6.28); ctx.fill();
+  }
+});
+
+/* ---------- tray: three toys, a party button, and a tidy-up ---------- */
+const TOOLS = [
+  { id: 'swan',  icon: '\u{1F9A2}' },
+  { id: 'duck',  icon: '\u{1F986}' },
+  { id: 'chick', icon: '\u{1F414}' },
+  { id: 'party', icon: '\u{1F389}' },
+  { id: 'clear', icon: '\u{1F9F9}' }
+];
+const trayEl = Kit.tray(TOOLS, id => {
+  if (id === 'party'){
+    if (!toys.length) for (let i = 0; i < 5; i++)
+      toys.push(makeToy(KINDS[i % 3], rand(90, Kit.W - 90), rand(150, Kit.H - 150)));
+    for (const t of toys){ t.on = true; t.squash = 1; t.spin = rand(0.8, 1.8); }
+    burst(Kit.W / 2, Kit.H / 2, 40);
+    Sound.ding();
+    keepActive();
+  } else if (id === 'clear'){
+    for (const t of toys) burst(t.x, t.y, 8);
+    toys = []; held.clear();
+    Sound.whoosh();
+    keepActive();
+  } else {
+    tool = id;
+  }
+}, 'swan');
+function keepActive(){                        // party/clear are actions, not sticky tools
+  trayEl.querySelectorAll('.kit-tool').forEach(b => b.classList.toggle('active', b.title === tool));
+}
+
+// start with the pink swan already dancing so the room is never empty
+toys.push(makeToy('swan', Kit.W * 0.5, Kit.H * 0.5));
+</script>
+</body>
+</html>
