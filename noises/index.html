@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Noise Maker</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/kit.css">
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script src="../shared/kit.js"></script>
+<script>
+'use strict';
+/* A wall of pads that make noises. Pick a kit at the bottom, then bash away —
+   tap, hold, or drag a finger across the pads to run them together. Notes are
+   all on friendly scales, so nothing a child plays can sound wrong. */
+Kit.init('🎹', 'Noise Maker');
+const ctx = Kit.ctx;
+
+/* ---------- one extra sound source: filtered noise, for real drums ----------
+   kit.js gives us oscillators; a hi-hat needs noise. Built on Sound.ctx so it
+   stays soft-synth — no samples, no files, nothing to download. */
+function noise(dur, vol, freq, high){
+  if (!Sound.on || !Sound.ctx) return;
+  const c = Sound.ctx, n = Math.max(1, Math.floor(c.sampleRate * dur));
+  const buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const src = c.createBufferSource(); src.buffer = buf;
+  const flt = c.createBiquadFilter(); flt.type = high ? 'highpass' : 'lowpass';
+  flt.frequency.value = freq;
+  const g = c.createGain(); g.gain.setValueAtTime(vol, c.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
+  src.connect(flt); flt.connect(g); g.connect(c.destination);
+  src.start();
+}
+const later = (ms, fn) => ms ? setTimeout(fn, ms) : fn();
+
+/* ---------- pad recipes ----------
+   n(freq, to, dur, type, vol, delay) = one oscillator burst
+   z(dur, vol, cutoff, high, delay)   = one noise burst                     */
+const n = (f, to, d, t, v, at) => ({ f, to: to || f, d, t: t || 'sine', v: v || 0.09, at: at || 0 });
+const z = (d, v, f, high, at) => ({ z: 1, d, v, f, high, at: at || 0 });
+
+const PENT = [262, 294, 330, 392, 440, 523, 587, 659, 784, 880, 1047, 1175];   // C pentatonic, no wrong notes
+const BLUES = [262, 311, 349, 370, 392, 466, 523, 622, 698, 740, 784, 932];
+
+function keysPad(f, i){
+  return { i: '🎵', h: 210 + i * 9, s: [n(f, f, 0.55, 'triangle', 0.10), n(f * 2, f * 2, 0.35, 'sine', 0.035)] };
+}
+function bellPad(f, i){
+  return { i: '🔔', h: 44 + i * 4, s: [n(f * 2, f * 2, 1.1, 'sine', 0.085), n(f * 3, f * 3, 0.7, 'sine', 0.03, 20)] };
+}
+function hornPad(f, i){
+  return { i: '🎷', h: 18 + i * 5,
+           s: [n(f, f * 0.98, 0.5, 'sawtooth', 0.075), n(f * 1.005, f * 0.99, 0.5, 'sawtooth', 0.05, 12)] };
+}
+
+const DRUMS = [
+  { i: '🥁', h: 8,   s: [n(150, 45, 0.28, 'sine', 0.22)], z: [z(0.05, 0.06, 300)] },              // kick
+  { i: '🪘', h: 28,  s: [n(210, 150, 0.16, 'triangle', 0.12)], z: [z(0.17, 0.16, 1800, 1)] },     // snare
+  { i: '✨', h: 190, z: [z(0.05, 0.10, 7000, 1)] },                                                // closed hat
+  { i: '💫', h: 200, z: [z(0.34, 0.09, 6000, 1)] },                                                // open hat
+  { i: '🟠', h: 20,  s: [n(160, 90, 0.3, 'sine', 0.16)] },                                         // low tom
+  { i: '🟡', h: 45,  s: [n(240, 140, 0.26, 'sine', 0.15)] },                                       // mid tom
+  { i: '👏', h: 320, z: [z(0.06, 0.13, 2200, 1), z(0.05, 0.10, 2400, 1, 22), z(0.09, 0.09, 2000, 1, 44)] },
+  { i: '💥', h: 55,  z: [z(1.1, 0.10, 5000, 1)] },                                                 // crash
+  { i: '🔔', h: 50,  s: [n(800, 800, 0.3, 'square', 0.07), n(1200, 1200, 0.28, 'square', 0.05)] }, // cowbell
+  { i: '🔸', h: 15,  s: [n(1600, 900, 0.06, 'square', 0.07)], z: [z(0.04, 0.06, 4000, 1)] },       // rim
+  { i: '🥁', h: 350, s: [n(120, 38, 0.34, 'sine', 0.22)], z: [z(0.05, 0.05, 250)] },               // deep kick
+  { i: '💥', h: 275, z: [z(1.6, 0.09, 3500, 1)] }                                                  // long crash
+];
+
+const BARN = [
+  { i: '🐄', h: 24,  s: [n(150, 132, 0.55, 'sawtooth', 0.11), n(300, 250, 0.5, 'sawtooth', 0.03, 40)] },         // moo
+  { i: '🐔', h: 45,  s: [n(920, 660, 0.05, 'square', 0.07), n(860, 620, 0.05, 'square', 0.07, 110),
+                         n(700, 320, 0.2, 'sawtooth', 0.08, 230)] },                                             // bok bawk
+  { i: '🐷', h: 330, s: [n(300, 190, 0.11, 'sawtooth', 0.10), n(280, 170, 0.13, 'sawtooth', 0.09, 150)] },       // oink
+  { i: '🐑', h: 200, s: [n(420, 360, 0.16, 'sawtooth', 0.08), n(390, 330, 0.14, 'sawtooth', 0.07, 150),
+                         n(370, 300, 0.2, 'sawtooth', 0.07, 290)] },                                             // baa
+  { i: '🐴', h: 30,  s: [n(620, 300, 0.45, 'sawtooth', 0.09), n(520, 260, 0.3, 'sawtooth', 0.06, 120)] },        // neigh
+  { i: '🐕', h: 15,  s: [n(300, 150, 0.1, 'square', 0.12), n(260, 130, 0.12, 'square', 0.1, 170)] },             // woof
+  { i: '🐈', h: 290, s: [n(620, 880, 0.22, 'sine', 0.09), n(880, 520, 0.3, 'sine', 0.08, 200)] },                // meow
+  { i: '🦆', h: 55,  s: [n(430, 250, 0.13, 'sawtooth', 0.10), n(378, 228, 0.15, 'sawtooth', 0.085, 150)] },      // quack
+  { i: '🐐', h: 80,  s: [n(500, 430, 0.13, 'sawtooth', 0.08), n(470, 390, 0.12, 'sawtooth', 0.07, 130),
+                         n(450, 360, 0.15, 'sawtooth', 0.07, 250)] },                                            // maaa
+  { i: '🦃', h: 10,  s: [n(500, 380, 0.06, 'sawtooth', 0.08), n(520, 400, 0.06, 'sawtooth', 0.08, 80),
+                         n(480, 340, 0.06, 'sawtooth', 0.08, 160), n(460, 300, 0.12, 'sawtooth', 0.08, 240)] },  // gobble
+  { i: '🐭', h: 320, s: [n(1900, 1500, 0.07, 'sine', 0.07), n(2100, 1600, 0.06, 'sine', 0.06, 90)] },            // squeak
+  { i: '🐝', h: 50,  s: [n(190, 205, 0.2, 'sawtooth', 0.06), n(205, 185, 0.22, 'sawtooth', 0.06, 190)] }         // buzz
+];
+
+const SPACE = [
+  { i: '🚀', h: 20,  s: [n(90, 60, 0.9, 'sawtooth', 0.10)], z: [z(0.9, 0.12, 500)] },                            // liftoff
+  { i: '🛸', h: 180, s: [n(600, 900, 0.3, 'sine', 0.07), n(900, 600, 0.3, 'sine', 0.07, 300)] },                 // hovering saucer
+  { i: '⭐', h: 55,  s: [n(1600, 1600, 0.14, 'sine', 0.07), n(2100, 2100, 0.14, 'sine', 0.06, 90),
+                         n(2600, 2600, 0.2, 'sine', 0.05, 180)] },                                               // twinkle
+  { i: '👽', h: 120, s: [n(420, 620, 0.12, 'square', 0.06), n(620, 420, 0.12, 'square', 0.06, 120),
+                         n(420, 700, 0.16, 'square', 0.06, 240)] },                                              // alien chatter
+  { i: '☄️', h: 200, s: [n(1400, 180, 0.55, 'sawtooth', 0.08)], z: [z(0.5, 0.07, 2400, 1)] },                    // comet
+  { i: '🪐', h: 260, s: [n(70, 70, 1.4, 'sine', 0.11), n(105, 105, 1.2, 'sine', 0.05, 60)] },                    // planet hum
+  { i: '🛰️', h: 150, s: [n(1500, 1500, 0.5, 'sine', 0.07)] },                                                    // radar ping
+  { i: '🌙', h: 230, s: [n(330, 330, 1.0, 'triangle', 0.07), n(494, 494, 0.9, 'triangle', 0.04, 80)] },          // moon drift
+  { i: '💫', h: 300, s: [n(200, 1800, 0.5, 'sine', 0.07)] },                                                     // warp up
+  { i: '🔭', h: 195, s: [n(1200, 1200, 0.08, 'square', 0.05), n(1200, 1200, 0.08, 'square', 0.05, 200)] },       // scanner blip
+  { i: '⚡', h: 60,  s: [n(1800, 200, 0.16, 'sawtooth', 0.10)] },                                                 // zap
+  { i: '🌌', h: 275, z: [z(1.8, 0.07, 900)] }                                                                    // deep space wash
+];
+
+const THEMES = [
+  { id: 'keys',  icon: '🎹', pads: PENT.map(keysPad) },
+  { id: 'drums', icon: '🥁', pads: DRUMS },
+  { id: 'horn',  icon: '🎷', pads: BLUES.map(hornPad) },
+  { id: 'barn',  icon: '🐄', pads: BARN },
+  { id: 'space', icon: '🚀', pads: SPACE },
+  { id: 'bells', icon: '🔔', pads: PENT.map(bellPad) }
+];
+let theme = THEMES[0];
+
+/* ---------- playing a pad ---------- */
+function hit(k){
+  const pad = theme.pads[k];
+  if (!pad) return;
+  for (const s of pad.s || []) later(s.at, () => Sound.tone(s.f, s.d, s.t, s.v, s.to - s.f));
+  for (const q of pad.z || []) later(q.at, () => noise(q.d, q.v, q.f, q.high));
+  const c = cellOf(k);
+  cells[k].flash = 1; cells[k].squash = 1;
+  rings.push({ x: c.cx, y: c.cy, r: Math.min(c.w, c.h) * 0.22, life: 0.55, age: 0, h: pad.h });
+  for (let i = 0; i < 7; i++){
+    const a = rand(0, 6.28), sp = rand(60, 210);
+    bits.push({ x: c.cx, y: c.cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60,
+                life: rand(0.5, 1.0), age: 0, h: pad.h, ico: pad.i });
+  }
+}
+
+/* ---------- grid ---------- */
+let cols = 3, rows = 4, gx = 0, gy = 0, gw = 0, gh = 0;
+let cells = [], rings = [], bits = [];
+function layout(){
+  const wide = Kit.W > Kit.H;
+  cols = wide ? 4 : 3; rows = wide ? 3 : 4;
+  const top = 96, bottom = 96, pad = 12;
+  gx = pad; gy = top; gw = Kit.W - pad * 2; gh = Kit.H - top - bottom;
+  cells = [];
+  for (let k = 0; k < cols * rows; k++){
+    const c = cellOf(k);
+    cells.push({ flash: 0, squash: 0, wob: rand(0, 6.28), cx: c.cx, cy: c.cy });
+  }
+}
+function cellOf(k){
+  const cx0 = k % cols, cy0 = Math.floor(k / cols);
+  const w = gw / cols, h = gh / rows;
+  return { x: gx + cx0 * w, y: gy + cy0 * h, w, h, cx: gx + cx0 * w + w / 2, cy: gy + cy0 * h + h / 2 };
+}
+function padAt(x, y){
+  if (x < gx || x > gx + gw || y < gy || y > gy + gh) return -1;
+  const k = Math.floor((y - gy) / (gh / rows)) * cols + Math.floor((x - gx) / (gw / cols));
+  return k >= 0 && k < cols * rows ? k : -1;
+}
+
+/* ---------- input: tap, hold, or drag across pads ---------- */
+const at = new Map();                            // pointerId -> pad it is currently over
+function pointers(){
+  for (const [id, p] of Kit.pointers){
+    const k = padAt(p.x, p.y);
+    if (at.get(id) !== k){                       // sliding onto a new pad plays it
+      at.set(id, k);
+      if (k >= 0) hit(k);
+    }
+  }
+  for (const id of [...at.keys()]) if (!Kit.pointers.has(id)) at.delete(id);
+  Kit.taps.length = 0;
+}
+
+/* ---------- frame ---------- */
+Kit.onResize = layout;
+layout();
+
+Kit.loop(dt => {
+  pointers();
+  dt = clamp(dt, 0, 0.05);
+
+  for (const c of cells){
+    c.flash += (0 - c.flash) * Math.min(1, dt * 6);
+    c.squash += (0 - c.squash) * Math.min(1, dt * 9);
+    c.wob += dt;
+  }
+  for (const r of rings) r.age += dt;
+  rings = rings.filter(r => r.age < r.life);
+  for (const b of bits){ b.age += dt; b.vy += 260 * dt; b.x += b.vx * dt; b.y += b.vy * dt; }
+  bits = bits.filter(b => b.age < b.life);
+
+  const g = ctx.createLinearGradient(0, 0, 0, Kit.H);
+  g.addColorStop(0, '#141a35'); g.addColorStop(1, '#0b1024');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, Kit.W, Kit.H);
+
+  for (let k = 0; k < cells.length; k++){
+    const cell = cells[k], c = cellOf(k), pad = theme.pads[k];
+    if (!pad) continue;
+    const m = Math.min(c.w, c.h) * 0.06;
+    const x = c.x + m, y = c.y + m, w = c.w - m * 2, h = c.h - m * 2;
+    const lift = cell.squash * 0.05;
+    ctx.save();
+    ctx.translate(c.cx, c.cy);
+    ctx.scale(1 - lift, 1 - lift);
+    ctx.translate(-c.cx, -c.cy);
+    const r = Math.min(w, h) * 0.24;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+    else ctx.rect(x, y, w, h);
+    const lg = ctx.createLinearGradient(x, y, x, y + h);
+    lg.addColorStop(0, 'hsl(' + pad.h + ' 78% ' + (52 + cell.flash * 30) + '%)');
+    lg.addColorStop(1, 'hsl(' + pad.h + ' 72% ' + (34 + cell.flash * 26) + '%)');
+    ctx.fillStyle = lg; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.18 + cell.flash * 0.6) + ')';
+    ctx.lineWidth = 3; ctx.stroke();
+    const bob = Math.sin(cell.wob * 2) * 2 + cell.flash * -6;
+    drawEmoji(ctx, pad.i, c.cx, c.cy + bob, Math.min(w, h) * 0.46);
+    ctx.restore();
+  }
+
+  for (const r of rings){
+    const k = r.age / r.life;
+    ctx.strokeStyle = 'hsla(' + r.h + ' 95% 70% / ' + (1 - k) + ')';
+    ctx.lineWidth = 5 * (1 - k) + 1;
+    ctx.beginPath(); ctx.arc(r.x, r.y, r.r + k * 90, 0, 6.28); ctx.stroke();
+  }
+  for (const b of bits){
+    const k = 1 - b.age / b.life;
+    drawEmoji(ctx, b.ico, b.x, b.y, 20 * k + 6, 0, k);
+  }
+});
+
+/* ---------- kit picker ---------- */
+Kit.tray(THEMES.map(t => ({ id: t.id, icon: t.icon })), id => {
+  theme = THEMES.find(t => t.id === id) || THEMES[0];
+  for (let k = 0; k < cells.length; k++) later(k * 22, () => { if (cells[k]) cells[k].flash = 0.7; });
+  Sound.tone(700, 0.1, 'sine', 0.05, 250);
+}, 'keys');
+</script>
+</body>
+</html>
