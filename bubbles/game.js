@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=2';
 /* Tap empty space: a bubble. Tap a bubble: it pops. Drag: a stream of them.
    A few carry a small friendly passenger. Nothing else. */
 let bubbles = [], bits = [];

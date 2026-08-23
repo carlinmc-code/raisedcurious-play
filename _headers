@@ -3,5 +3,8 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(self), microphone=(), geolocation=()
   Cache-Control: public, max-age=300
+# assets/toy.js is the shared runtime for the toddler toys, so it must not
+# outlive the per-game files that call into it. A day-long cache here means
+# a new game.js can meet a stale shell and break on a signature change.
 /assets/*
-  Cache-Control: public, max-age=86400
+  Cache-Control: public, max-age=300
