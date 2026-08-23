@@ -86,3 +86,20 @@ body.has-tray .toy-go{bottom:calc(110px + env(safe-area-inset-bottom))}
 @media (prefers-reduced-motion: reduce){
   *{animation-duration:.01ms !important;transition-duration:.01ms !important}
 }
+
+/* two-device play, shared by the board games */
+.tbl-sheet .card{max-width:560px}
+.tbl-two{display:flex;gap:12px;margin:6px 0 4px}
+.tbl-big{flex:1;padding:18px 12px;border:none;border-radius:18px;background:var(--rust);color:#fff;
+  font-size:17px;font-weight:800;cursor:pointer;touch-action:manipulation}
+.tbl-big.alt{background:var(--forest)}
+.tbl-code{font-family:'Courier New',monospace;font-weight:700;font-size:30px;letter-spacing:.10em;
+  text-align:center;padding:14px 0;color:var(--ink)}
+.tbl-code.big{font-size:44px}
+.tbl-share{display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap}
+.tbl-share canvas{image-rendering:pixelated;border:8px solid #fff;border-radius:10px;background:#fff}
+.tbl-wait{text-align:center;color:var(--ink-light);font-size:15px;margin-top:8px}
+.tbl-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+.tbl-pad button{padding:18px 0;font-size:24px;font-weight:800;border:2px solid var(--rule);
+  background:#fff;border-radius:16px;cursor:pointer;touch-action:manipulation}
+.tbl-pad button:active{background:var(--cream-dark)}
