@@ -27,6 +27,7 @@ function drop(a, x){
 }
 const api = boot({
   title: 'Drop Zone',
+  coach: [{ type:'tap', x:.35, y:.04 }, { type:'tap', x:.62, y:.04 }],
   tryReal: { id: 92, name: 'Parachute Physics' },
   onReset(){ drops = []; bins.forEach(b => b.n = 0); },
   onResize(a){ layout(a); },
@@ -79,5 +80,5 @@ const api = boot({
   }
 });
 layout(api);
-api.action('DROP 5', '', () => { for (let i=0;i<5;i++) drop(api, rand(api.W*.2, api.W*.8)); });
+api.action('\u{1F5D1}\uFE0F', 'Drop five', '', () => { for (let i=0;i<5;i++) drop(api, rand(api.W*.2, api.W*.8)); });
 api.tray(THINGS.map(t => ({ id:t, icon:t })), id => thing = id, '🔴');

@@ -11,9 +11,9 @@ const KINDS = {
   box:    { icon:'📦', w:1.1, h:.72, col:'#9A6B3F' }
 };
 let U = 60;
-function drop(a){
+function drop(a, atX){
   const k = KINDS[kind];
-  boxes.push({ x: rand(a.W*.25, a.W*.75), y: a.top + 40, vx: rand(-20,20), vy: 0,
+  boxes.push({ x: clamp(atX == null ? a.W/2 : atX, 40, a.W - 40), y: a.top + 40, vx: rand(-20,20), vy: 0,
     w: k.w*U, h: k.h*U, col: k.col, round: k.round, emoji: k.emoji, rot: 0, vr: rand(-.4,.4) });
   if (boxes.length > 40) boxes.shift();
   Sound.tap();
@@ -24,6 +24,7 @@ function crash(a){
 }
 const api = boot({
   title: 'Stack & Crash',
+  coach: [{ type:'tap', x:.5, y:.30 }, { type:'tap', x:.5, y:.30 }],
   tryReal: { id: 28, name: 'Marshmallow Tower Challenge' },
   onReset(){ boxes = []; ball = null; },
   onResize(a){ U = clamp(a.W/7, 42, 74); floorY = a.H - 110; },
@@ -32,7 +33,7 @@ const api = boot({
       const b = boxes[i];
       if (Math.abs(x-b.x) < b.w*.7 && Math.abs(y-b.y) < b.h*.7){ b.vx += rand(-160,160); b.vy -= 180; Sound.thud(); return; }
     }
-    drop(api);
+    drop(api, x);
   },
   tick(dt, a){
     for (const b of boxes){
@@ -77,7 +78,7 @@ const api = boot({
     }
   }
 });
-api.action('CRASH IT', '', () => crash(api));
-const b2 = api.action('DROP', 'alt', () => drop(api));
+api.action('\u{1F4A5}', 'Crash it', '', () => crash(api));
+const b2 = api.action('\u2B07\uFE0F', 'Drop', 'alt', () => drop(api));
 b2.style.left='auto'; b2.style.right='14px'; b2.style.transform='none'; b2.style.minWidth='0'; b2.style.padding='20px 22px';
 api.tray(Object.keys(KINDS).map(k => ({ id:k, icon:KINDS[k].icon })), id => kind = id, 'block');

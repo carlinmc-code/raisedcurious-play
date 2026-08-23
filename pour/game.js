@@ -70,10 +70,11 @@ function sim(){
 }
 const api = boot({
   title: 'Pour & Flow',
+  coach: [{ type:'drag', from:[.30,.18], to:[.62,.34] }],
   tryReal: { id: 54, name: 'Density Tower' },
   onReset(){ build(api); },
   onResize(a){ build(a); },
-  onDown(x, y){ pourAt = { x, y }; Sound.splash(); },
+  onDown(x, y){ pourAt = { x, y }; for (let i = 0; i < 6; i++) pour(x, y); Sound.splash(); },
   onMove(x, y){ if (pourAt) pourAt = { x, y }; },
   onUp(){ pourAt = null; },
   tick(dt, a){
@@ -90,5 +91,10 @@ const api = boot({
   }
 });
 build(api);
+api.action('\u{1F30A}', 'Big pour', '', () => {
+  const x = api.W / 2, y = api.top + 40;
+  for (let i = 0; i < 60; i++) pour(x + rand(-40, 40), y + rand(-20, 20));
+  Sound.splash();
+});
 api.tray(Object.keys(MATS).map(k => ({ id:k, icon:{water:'💧',sand:'🏖️',beads:'🔴',rice:'🍚'}[k], name:MATS[k].name })),
   id => mat = id, 'water');

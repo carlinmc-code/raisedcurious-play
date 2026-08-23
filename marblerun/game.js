@@ -218,6 +218,7 @@ function drawPiece(ctx, c, r, t){
 let dragCell = null;
 const api = boot({
   title: 'Marble Run Builder',
+  coach: [{ type:'tap', x:.42, y:.12 }, { type:'tap', x:.62, y:.10 }],
   tryReal: { id: 123, name: 'Paper Roller Coaster' },
   onReset(){ load(presetName); },
   onResize(a){ layout(a); },
@@ -284,23 +285,35 @@ let presetName = 'Little Run';
 load(presetName);
 layout(api);
 
-const dropBtn = api.action('DROP MARBLES', '', () => drop(1));
-const buildBtn = api.action('BUILD', 'alt', () => setMode(mode === 'build' ? 'play' : 'build'));
+const dropBtn = api.action('\u{1F535}', 'Drop', '', () => drop(1));
+const buildBtn = api.action('\u{1F6E0}\uFE0F', 'Build', 'alt', () => setMode(mode === 'build' ? 'play' : 'build'));
 buildBtn.style.left = 'auto'; buildBtn.style.right = '14px'; buildBtn.style.transform = 'none';
 buildBtn.style.minWidth = '0'; buildBtn.style.padding = '20px 22px';
 
 let tray = null;
 function setMode(m){
   mode = m;
-  buildBtn.textContent = m === 'build' ? 'DONE' : 'BUILD';
+  buildBtn.querySelector('.ico').textContent = m === 'build' ? '\u2705' : '\u{1F6E0}\uFE0F';
+  buildBtn.querySelector('.lbl').textContent = m === 'build' ? 'Done' : 'Build';
   dropBtn.style.display = m === 'build' ? 'none' : '';
   if (m === 'build' && !tray){
-    tray = api.tray(TOOLS.map(t => ({ id: t, icon: ICON[t], name: P[t].name })), id => tool = id, tool);
+    tray = api.tray(TOOLS.map(t => ({ id: t, svg: toolSVG(t), name: P[t].name })), id => tool = id, tool);
   } else if (tray){ tray.style.display = m === 'build' ? '' : 'none'; }
-  if (m === 'build' && tray) tray.style.display = '';
+  api.showTray(m === 'build');
 }
-const ICON = { straight:'│', short:'╷', elbowE:'└', elbowW:'┘', rampE:'╲', rampW:'╱',
-  funnel:'▽', spiral:'◎', scurve:'∫', splitter:'⑂', drum:'◓', bell:'🔔', cup:'🥣' };
+/* A four-year-old cannot tell one box-drawing glyph from another, so each
+   tool shows a small drawing of the actual piece and the marble in it. */
+function toolSVG(t){
+  const pts = pathOf(P[t]).map(q => (6 + q[0] * 40).toFixed(1) + ',' + (5 + q[1] * 42).toFixed(1)).join(' ');
+  const end = pathOf(P[t])[pathOf(P[t]).length - 1];
+  return '<svg viewBox="0 0 52 52" aria-hidden="true">' +
+    '<polyline points="' + pts + '" fill="none" stroke="#CFE3EC" stroke-width="13" ' +
+      'stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<polyline points="' + pts + '" fill="none" stroke="#2A6B8A" stroke-width="2.5" ' +
+      'stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>' +
+    '<circle cx="' + (6 + end[0] * 40).toFixed(1) + '" cy="' + (5 + end[1] * 42).toFixed(1) +
+      '" r="5.5" fill="#C4522A"/></svg>';
+}
 
 // preset + colour cyclers live in the top bar
 const bar = document.querySelector('.toy-bar');
@@ -310,3 +323,4 @@ const names = Object.keys(PRESETS);
 mk('🎲', () => { presetName = pick(names.filter(n => n !== presetName)); load(presetName); Sound.whoosh(); });
 const colBtn = mk('🔴', () => { colour++; colBtn.textContent = ['🔴','🔵','🟢','🟡','🟣','🟠'][colour % 6]; });
 mk('⏬', () => drop(10));
+api.showTray(false);                 // play mode opens with no tray

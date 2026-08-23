@@ -20,11 +20,14 @@ function put(a, x, y){
 }
 const px = (a, i) => ({ x: i.gx*S + S/2, y: a.top + i.gy*S + S/2 });
 function go(a){
-  ball = { x: S/2 + (items[0] ? items[0].gx*S : a.W*.15), y: a.top + 10, vx: 40, vy: 0, r: 15 };
+  let top = null;                                  // highest gadget wins the drop
+  for (const i of items) if (!top || i.gy < top.gy) top = i;
+  ball = { x: top ? top.gx*S + S/2 : a.W/2, y: a.top + 10, vx: 0, vy: 0, r: 15 };
   Sound.whoosh();
 }
 const api = boot({
   title: 'Contraption Lab',
+  coach: [{ type:'tap', x:.32, y:.24 }, { type:'tap', x:.58, y:.52 }],
   tryReal: { id: 97, name: 'Rube Goldberg Machine' },
   onReset(){ items = []; ball = null; flashes = []; },
   onResize(a){ S = clamp(Math.round(a.W / 6), 56, 92); },
@@ -105,11 +108,7 @@ const api = boot({
       ctx.fillStyle = 'rgba(255,255,255,.45)';
       ctx.beginPath(); ctx.arc(ball.x-5, ball.y-5, 5, 0, 7); ctx.fill();
     }
-    if (!items.length){
-      ctx.fillStyle = '#8C8278'; ctx.font = '600 20px Lato, system-ui';
-      ctx.fillText('Tap to place gadgets, then press GO', a.W/2, a.H/2);
-    }
   }
 });
-api.action('GO', '', () => go(api));
+api.action('\u25B6\uFE0F', 'Go', '', () => go(api));
 api.tray(Object.keys(TOOLS).map(k => ({ id:k, icon:TOOLS[k].icon })), id => tool = id, 'ramp');

@@ -19,6 +19,7 @@ function pop(b){
 }
 const api = boot({
   title: 'Bubble World',
+  coach: [{ type:'tap', x:.42, y:.55 }, { type:'drag', from:[.25,.7], to:[.75,.4] }],
   tryReal: { id: 22, name: 'Bubble Snakes' },
   onReset(){ bubbles = []; bits = []; },
   onDown(x, y){
@@ -61,4 +62,4 @@ const api = boot({
     }
   }
 });
-api.action('MORE BUBBLES', '', () => { for (let i=0;i<14;i++) make(rand(40, api.W-40), api.H-140, Math.random()<.2); });
+api.action('\u{1FAE7}', 'More bubbles', '', () => { for (let i=0;i<14;i++) make(rand(40, api.W-40), api.H-140, Math.random()<.2); });

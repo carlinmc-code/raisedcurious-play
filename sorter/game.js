@@ -29,6 +29,7 @@ function celebrate(x, y, col){
 }
 const api = boot({
   title: 'Color Sorter',
+  coach: [{ type:'drag', from:[.5,.78], to:[.14,.10] }],
   tryReal: { id: 32, name: 'Color Mixing Paddles' },
   onReset(){ balls = []; scored = 0; bits = []; layout(api); },
   onResize(a){ layout(a); },
@@ -98,5 +99,5 @@ const api = boot({
   }
 });
 layout(api);
-api.action('MORE BALLS', '', () => { for (let i=0;i<4;i++) balls.push({
+api.action('\u2795', 'More balls', '', () => { for (let i=0;i<4;i++) balls.push({
   x: rand(40, api.W-40), y: api.H - 200, vx: rand(-40,40), vy: 0, hue: pick(HUES), r: R }); });

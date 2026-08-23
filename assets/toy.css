@@ -19,9 +19,13 @@ canvas{display:block;position:fixed;inset:0;width:100%;height:100%;touch-action:
 .toy-bar{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:8px;
   padding:max(10px,env(safe-area-inset-top)) 12px 10px;pointer-events:none}
 .toy-bar > *{pointer-events:auto}
-.toy-btn{width:56px;height:56px;border-radius:18px;border:2px solid var(--rule);background:var(--paper);
+.toy-btn{position:relative;overflow:hidden;width:56px;height:56px;border-radius:18px;
+  border:2px solid var(--rule);background:var(--paper);text-decoration:none;color:inherit;
   display:grid;place-items:center;font-size:26px;line-height:1;cursor:pointer;
   box-shadow:0 2px 0 rgba(28,26,22,.06)}
+/* fills from the bottom while a grown-up holds the button down */
+.toy-btn .hold{position:absolute;inset:0;background:var(--gold);opacity:.4;pointer-events:none;
+  transform:scaleY(0);transform-origin:bottom}
 .toy-btn:active{transform:translateY(1px) scale(.97)}
 .toy-btn.on{background:var(--gold);border-color:transparent}
 .toy-name{font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:700;
@@ -30,10 +34,17 @@ canvas{display:block;position:fixed;inset:0;width:100%;height:100%;touch-action:
 
 /* the one big action button every toy has */
 .toy-go{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));
-  z-index:20;min-width:230px;padding:20px 34px;border:none;border-radius:26px;
-  background:var(--rust);color:#fff;font-size:23px;font-weight:800;letter-spacing:.01em;
+  z-index:20;min-width:190px;padding:12px 28px 14px;border:none;border-radius:26px;
+  background:var(--rust);color:#fff;letter-spacing:.01em;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
   box-shadow:0 5px 0 #9C3F1F;cursor:pointer}
+/* the picture is the button as far as our player is concerned; the word is
+   for the grown-up next to them */
+.toy-go .ico{font-size:38px;line-height:1.05}
+.toy-go .lbl{font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;opacity:.92}
 .toy-go:active{transform:translateX(-50%) translateY(3px);box-shadow:0 2px 0 #9C3F1F}
+/* when a tool tray is open the button lifts clear of it */
+body.has-tray .toy-go{bottom:calc(110px + env(safe-area-inset-bottom))}
 .toy-go.alt{background:var(--forest);box-shadow:0 5px 0 #204630}
 .toy-go.alt:active{box-shadow:0 2px 0 #204630}
 
@@ -63,6 +74,8 @@ canvas{display:block;position:fixed;inset:0;width:100%;height:100%;touch-action:
   background:#fff;transition:left .16s ease}
 .toy-switch.on{background:var(--forest)}
 .toy-switch.on::after{left:32px}
+.toy-mini{border:2px solid var(--forest);background:#fff;color:var(--forest);border-radius:14px;
+  padding:10px 18px;font-size:15px;font-weight:800;cursor:pointer;flex:none}
 .toy-close{width:100%;margin-top:18px;padding:16px;border:none;border-radius:18px;background:var(--ink);
   color:var(--cream);font-size:18px;font-weight:800;cursor:pointer}
 .toy-real{display:block;margin-top:12px;padding:14px 16px;border:2px solid var(--forest);border-radius:18px;

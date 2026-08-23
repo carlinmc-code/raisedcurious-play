@@ -26,6 +26,7 @@ function born(a){
 }
 const api = boot({
   title: 'Ball Factory',
+  coach: [{ type:'tap', x:.5, y:.5 }, { type:'tap', x:.5, y:.5 }],
   tryReal: { id: 50, name: 'Balloon Rocket Car' },
   onReset(){ balls = []; count = 0; },
   onResize(a){ layout(a); },
@@ -105,4 +106,4 @@ const api = boot({
   }
 });
 layout(api);
-api.action('MAKE A BALL', '', () => born(api));
+api.action('\u{1F535}', 'Make a ball', '', () => born(api));

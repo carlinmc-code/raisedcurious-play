@@ -26,6 +26,7 @@ function go(){
 }
 const api = boot({
   title: 'Domino Builder',
+  coach: [{ type:'drag', from:[.18,.62], to:[.82,.44] }],
   tryReal: { id: 97, name: 'Rube Goldberg Machine' },
   onReset(){ ds = []; last = null; running = false; },
   onDown(x, y){
@@ -68,13 +69,8 @@ const api = boot({
       ctx.beginPath(); ctx.arc(0, -HH*.28, 2.6, 0, 7); ctx.fill();
       ctx.restore();
     }
-    if (!ds.length){
-      ctx.fillStyle = '#8C8278'; ctx.font = '600 20px Lato, system-ui';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('Drag your finger to lay dominoes', a.W/2, a.H/2);
-    }
   }
 });
-api.action('TIP IT OVER', '', go);
+api.action('\u{1F449}', 'Tip it over', '', go);
 api.tray(COLS.map((c,i) => ({ id:String(i), svg:`<span style="display:block;width:26px;height:26px;border-radius:6px;background:${c}"></span>` })),
   id => colour = COLS[+id], '0');

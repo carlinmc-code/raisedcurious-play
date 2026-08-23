@@ -26,6 +26,7 @@ function confetti(a){
 }
 const api = boot({
   title: 'Peekaboo House',
+  coach: [{ type:'tap', x:.22, y:.28 }, { type:'tap', x:.72, y:.58 }],
   tryReal: { id: 64, name: 'Homemade Periscope' },
   onReset(){ build(api); },
   onResize(a){ build(a); },
@@ -75,4 +76,4 @@ const api = boot({
   }
 });
 build(api);
-api.action('SHUFFLE', '', () => { build(api); Sound.whoosh(); });
+api.action('\u{1F500}', 'Shuffle', '', () => { build(api); Sound.whoosh(); });
