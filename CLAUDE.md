@@ -17,7 +17,12 @@ Plain HTML/JS/CSS, no framework, no build. Push to main -> Cloudflare Pages auto
 2. Bounces: never rely on restitution for static pads; matter skips low-speed contacts
    ("resting"). Use zone-based scripted launches with per-marble cooldowns (see trampoline).
 3. Apertures/gaps must be sized to the passing body: >= 1.5x diameter (funnel is 1.75x).
-4. drawEmoji SIGNATURE IN THIS REPO: drawEmoji(ctx, emoji, x, y, size, angle, alpha).
+4. drawEmoji SIGNATURE IN THIS REPO:
+     drawEmoji(ctx, emoji, x, y, size, angle, alpha, flip)
+   The 7th argument is OPACITY. Passing a flip flag there sets globalAlpha to a
+   boolean, false becomes 0, and the thing draws perfectly invisibly with no
+   error. Six live call sites did exactly that (invisible bees, an invisible
+   bear, invisible sparkles in three games) until 2026-08-23. `flip` is 8th.
    (wiggle-world2 uses a DIFFERENT signature without ctx - never copy calls between repos.)
 5. iOS ignores user-scalable=no: zoom guards live in shared/kit.js (gesturestart etc).
    Never remove them. UI controls get touch-action: manipulation.
@@ -25,7 +30,8 @@ Plain HTML/JS/CSS, no framework, no build. Push to main -> Cloudflare Pages auto
 
 ## Required checks before any push
 - node --check every inline <script> (extract it) and shared/kit.js.
-- Audit: grep 'drawEmoji(' - first arg must be ctx in every call in this repo.
+- Audit drawEmoji: first arg must be ctx AND the 7th must be numeric opacity,
+  never a boolean or a comparison. A wrong 7th argument is silent and invisible.
 - New game: add a hub tile in index.html (gradient style matching neighbors) same commit.
 - Serve locally (python3 -m http.server) and load the changed game once before pushing.
 - Every game gets a wordless first-run finger guide: kit games call Kit.guide([...])

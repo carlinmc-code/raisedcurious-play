@@ -178,8 +178,14 @@ const Kit = {
   }
 };
 
-function drawEmoji(ctx, e, x, y, size, angle = 0, alpha = 1){
+/* drawEmoji(ctx, emoji, x, y, size, angle, alpha, flip)
+   `flip` is last and optional. Several call sites were once written for a
+   signature with flip in the alpha slot, which set globalAlpha to a boolean:
+   false becomes 0, so the thing was drawn perfectly invisibly. If you add a
+   call, the seventh argument is opacity and nothing else. */
+function drawEmoji(ctx, e, x, y, size, angle = 0, alpha = 1, flip = false){
   ctx.save(); ctx.translate(x, y); if (angle) ctx.rotate(angle);
+  if (flip) ctx.scale(-1, 1);
   ctx.globalAlpha = alpha;
   ctx.font = size + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';

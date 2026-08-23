@@ -8,7 +8,7 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js?v=4"></script>
+<script src="../shared/kit.js?v=5"></script>
 <script>
 'use strict';
 /* Orbit Lab. Place planets and suns, then fling rockets and watch gravity
@@ -283,7 +283,7 @@ Kit.loop((dt, t) => {
     const p = bursts[i];
     p.x += p.vx * dt; p.y += p.vy * dt; p.a -= dt * 1.1;
     if (p.a <= 0){ bursts.splice(i, 1); continue; }
-    drawEmoji(ctx, p.e, p.x, p.y, 20, 0, false, Math.min(1, p.a));
+    drawEmoji(ctx, p.e, p.x, p.y, 20, 0, Math.min(1, p.a));
   }
 
   // gentle hint when the field is empty

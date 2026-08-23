@@ -8,31 +8,70 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js?v=4"></script>
+<script src="../shared/kit.js?v=5"></script>
 <script>
 'use strict';
-/* Drop crumbs and watch the ants find them and carry them home.
-   Dig tunnels in the dirt with your finger. Slow and calm on purpose. */
+/* Drop crumbs and watch the ants carry them home. Dig tunnels with a finger.
+   The nest is a cutaway, so you can watch what happens after an ant goes in:
+   crumbs get stacked in the pantry, eggs wobble in the nursery, tired ants
+   nap, and there is a potty. That last one is not a joke - ants really do
+   keep a dedicated waste chamber inside the nest and go back to the same
+   corner of it, which is one of the more surprising true things about them. */
 Kit.init('🐜', 'Bug Garden');
-    Kit.guide([{type:'tap',x:.38,y:.58},{type:'tap',x:.66,y:.48}]);
+Kit.guide([{type:'tap',x:.34,y:.28},{type:'tap',x:.64,y:.40}]);
 const ctx = Kit.ctx;
 
-let ants = [], crumbs = [], flowers = [], dirtCell = 10, DG = null, DW = 0, DH = 0, dirtTop = 0;
-const nest = { x: 0, y: 0 };
+let ants = [], crumbs = [], flowers = [], puffs = [];
+let dirtCell = 10, DG = null, DW = 0, DH = 0, dirtTop = 0;
+let rooms = {}, entrance = { x: 0, y: 0 }, j1 = { x: 0, y: 0 }, j2 = { x: 0, y: 0 };
+let stored = 0, eggWob = 0;
 let tool = 'crumb';
+
+const ROOMS = [
+  { id: 'pantry',  emoji: '🍪', at: [-1, 1] },
+  { id: 'nursery', emoji: '🥚', at: [ 1, 1] },
+  { id: 'potty',   emoji: '🚽', at: [-1, 2] },
+  { id: 'bed',     emoji: '😴', at: [ 1, 2] }
+];
 
 function build(){
   dirtTop = Math.floor(Kit.H * 0.55);
   DW = Math.ceil(Kit.W / dirtCell); DH = Math.ceil((Kit.H - dirtTop) / dirtCell);
   DG = new Uint8Array(DW * DH).fill(1);   // 1 = dirt, 0 = tunnel
-  nest.x = Kit.W * 0.5; nest.y = dirtTop + 30;
-  // starter chamber
-  digAt(nest.x, nest.y, 34);
+
+  const UH = Kit.H - dirtTop;                     // how much underground we have
+  const cx = Kit.W * 0.5;
+  const off = clamp(Kit.W * 0.24, 74, 168);
+  const rr  = clamp(UH * 0.13, 24, 46);
+
+  entrance = { x: cx, y: dirtTop + 10 };
+  j1 = { x: cx, y: dirtTop + UH * 0.24 };
+  j2 = { x: cx, y: dirtTop + UH * 0.58 };
+
+  rooms = {};
+  for (const R of ROOMS){
+    const j = R.at[1] === 1 ? j1 : j2;
+    rooms[R.id] = {
+      id: R.id, emoji: R.emoji, r: rr,
+      x: cx + R.at[0] * off, y: j.y,
+      path: [entrance, { x: cx, y: j.y }, { x: cx + R.at[0] * off, y: j.y }]
+    };
+  }
+  // carve the shaft, the corridors and the chambers
+  const shaftR = Math.max(9, rr * 0.34);
+  for (let y = entrance.y; y <= j2.y; y += 4) digAt(cx, y, shaftR);
+  for (const R of ROOMS){
+    const room = rooms[R.id];
+    for (let k = 0; k <= 1; k += .04)
+      digAt(cx + (room.x - cx) * k, room.y, shaftR * 0.9);
+    digAt(room.x, room.y, rr);
+  }
   ants = Array.from({ length: 14 }, () => ({
-    x: nest.x + rand(-20, 20), y: nest.y + rand(-10, 10),
-    a: rand(0, 6.28), carrying: false, speed: rand(26, 44), wob: rand(0, 6)
+    x: cx + rand(-30, 30), y: dirtTop - rand(20, 90),
+    a: rand(0, 6.28), carrying: false, speed: rand(26, 44), wob: rand(0, 6),
+    job: 'forage', route: null, sit: 0, sitAt: null
   }));
-  crumbs = []; flowers = [];
+  crumbs = []; flowers = []; puffs = []; stored = 0;
 }
 function digAt(px, py, r){
   const cx = Math.floor(px / dirtCell), cy = Math.floor((py - dirtTop) / dirtCell), cr = Math.ceil(r / dirtCell);
@@ -75,74 +114,171 @@ Kit.canvas.addEventListener('pointermove', e => {
   }
 });
 
+/* ---------- errands ----------
+   An ant heading into the nest follows a short list of waypoints rather than
+   nosing at the walls, so it always actually arrives at the room it wanted. */
+function sendTo(ant, id){
+  ant.job = id;
+  ant.route = rooms[id].path.slice();
+  ant.sit = 0;
+}
+function goHome(ant){                              // back up the shaft and out
+  ant.job = 'leaving';
+  ant.route = rooms.pantry.path.slice().reverse();
+  ant.route[ant.route.length - 1] = { x: entrance.x, y: dirtTop - 26 };
+}
+
 Kit.loop((dt, t) => {
-  /* ants */
+  eggWob += dt;
   for (const ant of ants){
-    let target = null;
-    if (ant.carrying) target = nest;
-    else {
-      let bd = 1e9;
+    let target = null, arrive = 12;
+
+    if (ant.sit > 0){                              // busy in a room
+      ant.sit -= dt;
+      if (ant.sit <= 0){
+        if (ant.job === 'potty'){
+          puffs.push({ x: ant.x, y: ant.y - 10, e: '💧', age: 0 });
+          Sound.squeak();
+        }
+        goHome(ant);
+      }
+    } else if (ant.route && ant.route.length){
+      target = ant.route[0];
+      arrive = 14;
+      if (Math.hypot(target.x - ant.x, target.y - ant.y) < arrive){
+        ant.route.shift();
+        if (!ant.route.length){
+          if (ant.job === 'leaving'){ ant.job = 'forage'; ant.route = null; }
+          else {
+            ant.sitAt = rooms[ant.job];
+            ant.sit = ant.job === 'potty' ? rand(1.4, 2.4)
+                    : ant.job === 'bed'   ? rand(2.5, 5)
+                    : rand(.5, 1.1);
+            if (ant.job === 'pantry' && ant.carrying){
+              ant.carrying = false; stored = Math.min(24, stored + 1); Sound.click();
+            }
+          }
+        }
+        target = ant.route && ant.route.length ? ant.route[0] : null;
+      }
+    } else if (ant.carrying){
+      sendTo(ant, 'pantry');
+    } else {
+      let bd = 1e9;                                // nearest crumb, above ground
       for (const c of crumbs){
         const d = (c.x - ant.x) ** 2 + (c.y - ant.y) ** 2;
         if (d < bd){ bd = d; target = c; }
       }
     }
+
     if (target){
       const want = Math.atan2(target.y - ant.y, target.x - ant.x);
       let diff = want - ant.a;
       while (diff > Math.PI) diff -= 6.283; while (diff < -Math.PI) diff += 6.283;
-      ant.a += diff * dt * 2 + rand(-0.5, 0.5) * dt;
-    } else {
+      ant.a += diff * dt * (ant.route ? 5 : 2) + rand(-0.4, 0.4) * dt;
+    } else if (ant.sit <= 0){
       ant.a += rand(-1.6, 1.6) * dt;
     }
-    const nx = ant.x + Math.cos(ant.a) * ant.speed * dt;
-    const ny = ant.y + Math.sin(ant.a) * ant.speed * dt;
-    // ants walk above ground freely, underground only in tunnels
-    if (nx > 8 && nx < Kit.W - 8 && ny > 60 && ny < Kit.H - 40 && isDug(nx, ny)){
-      ant.x = nx; ant.y = ny;
+
+    if (ant.sit > 0){
+      const r = ant.sitAt;                         // shuffle about inside the room
+      ant.x += (r.x + Math.sin(t * 1.4 + ant.wob) * r.r * .45 - ant.x) * dt * 2.2;
+      ant.y += (r.y + Math.cos(t * 1.1 + ant.wob) * r.r * .30 - ant.y) * dt * 2.2;
+      ant.a += dt * .6;
     } else {
-      ant.a += Math.PI * rand(0.4, 0.7);
+      const sp = ant.route ? ant.speed * 1.25 : ant.speed;
+      const nx = ant.x + Math.cos(ant.a) * sp * dt;
+      const ny = ant.y + Math.sin(ant.a) * sp * dt;
+      if (nx > 8 && nx < Kit.W - 8 && ny > 60 && ny < Kit.H - 40 && isDug(nx, ny)){
+        ant.x = nx; ant.y = ny;
+      } else {
+        ant.a += Math.PI * rand(0.4, 0.7);
+      }
     }
-    // pick up / deliver
-    if (!ant.carrying){
+
+    if (!ant.carrying && !ant.route && ant.sit <= 0){
       for (const c of crumbs){
         if (Math.hypot(c.x - ant.x, c.y - ant.y) < 14){
           ant.carrying = true; c.amount--; Sound.click();
+          sendTo(ant, 'pantry');
           break;
         }
       }
-    } else if (Math.hypot(nest.x - ant.x, nest.y - ant.y) < 22){
-      ant.carrying = false;
-      if (Math.random() < 0.5) Sound.squeak();
     }
+    // after dropping off, some ants have somewhere else to be
+    if (ant.job === 'leaving' && ant.route && ant.route.length === 3 && !ant.detoured){
+      ant.detoured = 1;
+      const r = Math.random();
+      if (r < .28) sendTo(ant, 'potty');
+      else if (r < .45) sendTo(ant, 'bed');
+      else if (r < .55) sendTo(ant, 'nursery');
+    }
+    if (ant.job === 'forage') ant.detoured = 0;
   }
+
   for (let i = crumbs.length - 1; i >= 0; i--)
     if (crumbs[i].amount <= 0) crumbs.splice(i, 1);
   for (const f of flowers) f.grow = Math.min(1, f.grow + dt * 0.8);
+  for (const p of puffs) p.age += dt;
+  puffs = puffs.filter(p => p.age < 1.4);
 
-  /* draw */
+  /* ---------- draw ---------- */
   const g = ctx.createLinearGradient(0, 0, 0, dirtTop);
   g.addColorStop(0, '#8ED0F5'); g.addColorStop(1, '#C8E89B');
   ctx.fillStyle = g; ctx.fillRect(0, 0, Kit.W, dirtTop);
   drawEmoji(ctx, '🌞', Kit.W * 0.86, 90, 70, t * 0.05);
   ctx.fillStyle = '#7FBF4D'; ctx.fillRect(0, dirtTop - 12, Kit.W, 12);
 
-  // dirt with tunnels
   for (let y = 0; y < DH; y++){
     for (let x = 0; x < DW; x++){
       if (DG[y * DW + x]){
         ctx.fillStyle = (x + y) % 2 ? '#8B5A3C' : '#84543a';
-        ctx.fillRect(x * dirtCell, dirtTop + y * dirtCell, dirtCell, dirtCell);
       } else {
         ctx.fillStyle = '#4a2e1d';
-        ctx.fillRect(x * dirtCell, dirtTop + y * dirtCell, dirtCell, dirtCell);
       }
+      ctx.fillRect(x * dirtCell, dirtTop + y * dirtCell, dirtCell, dirtCell);
     }
   }
-  drawEmoji(ctx, '⛰️', nest.x, dirtTop - 16, 44);
+
+  // the rooms, so the nest reads as a house and not a hole
+  for (const R of ROOMS){
+    const r = rooms[R.id];
+    ctx.fillStyle = '#6B4A32';
+    ctx.beginPath(); ctx.ellipse(r.x, r.y, r.r * 1.06, r.r * 0.92, 0, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,225,180,.20)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(r.x, r.y, r.r * 1.06, r.r * 0.92, 0, 0, 6.283); ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,.18)';
+    ctx.beginPath(); ctx.ellipse(r.x, r.y + r.r * .78, r.r * .82, r.r * .16, 0, 0, 6.283); ctx.fill();
+
+    if (R.id === 'pantry'){
+      const n = Math.min(9, Math.ceil(stored / 2.6));
+      for (let i = 0; i < n; i++){
+        const col = i % 3, row = (i / 3) | 0;
+        drawEmoji(ctx, '🍪', r.x - r.r * .42 + col * r.r * .42, r.y + r.r * .52 - row * r.r * .36, r.r * .40);
+      }
+      if (!n) drawEmoji(ctx, '🍪', r.x, r.y, r.r * .58, 0, .28);
+    } else if (R.id === 'nursery'){
+      for (let i = 0; i < 3; i++)
+        drawEmoji(ctx, '🥚', r.x - r.r * .40 + i * r.r * .40,
+          r.y + r.r * .40 + Math.sin(eggWob * 2 + i) * 2, r.r * .40);
+    } else if (R.id === 'potty'){
+      drawEmoji(ctx, '🚽', r.x, r.y + r.r * .22, r.r * .82);
+    } else {
+      drawEmoji(ctx, '🛏️', r.x, r.y + r.r * .34, r.r * .74);
+      drawEmoji(ctx, '💤', r.x + r.r * .44, r.y - r.r * .34,
+        r.r * .40, 0, .55 + Math.sin(eggWob * 1.6) * .35);
+    }
+  }
+
+  // the mound on the surface, with a hole you can see the shaft through
+  drawEmoji(ctx, '⛰️', entrance.x, dirtTop - 16, 44);
+  ctx.fillStyle = '#3a2415';
+  ctx.beginPath(); ctx.ellipse(entrance.x, dirtTop - 4, 11, 5, 0, 0, 6.283); ctx.fill();
 
   for (const f of flowers) drawEmoji(ctx, f.e, f.x, f.y, 16 + f.grow * 30);
   for (const c of crumbs) drawEmoji(ctx, '🍪', c.x, c.y, 14 + c.amount * 3);
+  for (const p of puffs)
+    drawEmoji(ctx, p.e, p.x, p.y - p.age * 22, 15, 0, Math.max(0, 1 - p.age / 1.4));
 
   for (const ant of ants){
     const wig = Math.sin(t * 14 + ant.wob) * 0.15;
@@ -158,6 +294,8 @@ Kit.loop((dt, t) => {
     }
     if (ant.carrying) drawEmoji(ctx, '🍪', 9, 0, 11);
     ctx.restore();
+    if (ant.job === 'bed' && ant.sit > 0)
+      drawEmoji(ctx, '💤', ant.x + 10, ant.y - 10, 12, 0, .7);
   }
 });
 </script>

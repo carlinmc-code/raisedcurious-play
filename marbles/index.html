@@ -8,7 +8,7 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js?v=4"></script>
+<script src="../shared/kit.js?v=5"></script>
 <script>
 'use strict';
 /* Marble Run v2. Draw ramps, then build contraptions: funnels, trampolines,
@@ -373,7 +373,7 @@ Kit.loadMatter().then(Matter => {
           ctx.beginPath(); ctx.arc(p.x, p.y - 10, 20 + (1.4 - p.data.burst) * 100, 0, 6.28); ctx.stroke();
           ctx.restore();
           for (let k = 0; k < 4; k++)
-            drawEmoji(ctx, pick(['✨','🌟','🎉']), p.x + rand(-60, 60), p.y - rand(10, 110), 26, 0, false, Math.min(1, p.data.burst));
+            drawEmoji(ctx, pick(['✨','🌟','🎉']), p.x + rand(-60, 60), p.y - rand(10, 110), 26, 0, Math.min(1, p.data.burst));
         }
         drawEmoji(ctx, '🏆', p.x, p.y - 52, 26);
       }

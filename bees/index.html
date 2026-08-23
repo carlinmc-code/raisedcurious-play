@@ -8,7 +8,7 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js?v=4"></script>
+<script src="../shared/kit.js?v=5"></script>
 <script>
 'use strict';
 /* Plant flowers anywhere. Bees fly out, collect pollen from open blooms,
@@ -177,21 +177,21 @@ Kit.loop((dt, t) => {
   }
 
   for (const b of bees){
-    drawEmoji(ctx, '🐝', b.x, b.y + Math.sin(t * 10 + b.ph) * 4, 36, Math.sin(t * 7 + b.ph) * 0.2, b.vx < 0);
+    drawEmoji(ctx, '🐝', b.x, b.y + Math.sin(t * 10 + b.ph) * 4, 36, Math.sin(t * 7 + b.ph) * 0.2, 1, b.vx < 0);
     if (b.pollen) drawEmoji(ctx, '✨', b.x + 13, b.y - 11, 13);
   }
 
   if (bear){
     const wob = bear.munch > 0 ? Math.sin(t * 12) * 0.1 : Math.sin(t * 5) * 0.05;
-    drawEmoji(ctx, bear.munch > 0 ? '😋' : '🐻', bear.x, bear.y, 110, wob, bear.flee);
-    if (!bear.flee && bear.munch <= 0) drawEmoji(ctx, '🍯', bear.x + 50, bear.y - 50, 24, 0, false, 0.6);
+    drawEmoji(ctx, bear.munch > 0 ? '😋' : '🐻', bear.x, bear.y, 110, wob, 1, bear.flee);
+    if (!bear.flee && bear.munch <= 0) drawEmoji(ctx, '🍯', bear.x + 50, bear.y - 50, 24, 0, 0.6);
   }
 
   for (let i = sparkles.length - 1; i >= 0; i--){
     const s = sparkles[i];
     s.vy += 300 * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.a -= dt * 0.9;
     if (s.a <= 0){ sparkles.splice(i, 1); continue; }
-    drawEmoji(ctx, s.e, s.x, s.y, 20, 0, false, s.a);
+    drawEmoji(ctx, s.e, s.x, s.y, 20, 0, s.a);
   }
 });
 </script>
