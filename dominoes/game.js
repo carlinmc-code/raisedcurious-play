@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=2';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=3';
 /* Drag: dominoes drop along your finger at an even spacing. Press GO and the
    first one tips. Falls propagate down the line with a small delay, so the
    ripple is visible. Curves work; gaps stop the chain, which is the lesson. */

@@ -1,0 +1,111 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sound check · RaisedCurious Play</title>
+<meta name="robots" content="noindex">
+<style>
+:root{--cream:#FAF7F0;--ink:#1C1A16;--muted:#8C8278;--rule:#DDD5C8;--forest:#2D5A3D;--rust:#C4522A;--gold:#C9922A}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--cream);color:var(--ink);font-family:'Lato',system-ui,-apple-system,sans-serif;
+  padding:22px 16px 60px;-webkit-text-size-adjust:100%}
+.wrap{max-width:640px;margin:auto}
+h1{font-family:Georgia,serif;font-size:28px;margin-bottom:6px}
+p.sub{color:var(--muted);margin-bottom:22px}
+button{display:block;width:100%;padding:22px;border:none;border-radius:20px;color:#fff;
+  font-size:20px;font-weight:800;margin-bottom:12px;cursor:pointer;touch-action:manipulation}
+#web{background:var(--rust)} #html{background:var(--forest)}
+h2{font-family:Georgia,serif;font-size:19px;margin:26px 0 10px}
+table{width:100%;border-collapse:collapse;font-size:15px}
+td{padding:9px 0;border-top:1px solid var(--rule);vertical-align:top}
+td:first-child{color:var(--muted);width:52%}
+td:last-child{font-family:'Courier New',monospace;font-weight:700;text-align:right}
+.good{color:var(--forest)} .bad{color:var(--rust)}
+#verdict{margin-top:24px;padding:16px;border-radius:16px;border:2px solid var(--rule);background:#fff;
+  font-size:16px;line-height:1.5}
+#verdict b{display:block;font-family:Georgia,serif;font-size:18px;margin-bottom:6px}
+a{color:var(--forest)}
+</style></head><body><div class="wrap">
+<h1>Sound check</h1>
+<p class="sub">Tap each button and note whether you actually hear a beep. This page reports what the browser thinks is happening.</p>
+
+<button id="web">1. Play through Web Audio<br><small style="font-weight:600;opacity:.85">(what the games use)</small></button>
+<button id="html">2. Play a normal audio file<br><small style="font-weight:600;opacity:.85">(different sound path on iOS)</small></button>
+<audio id="clip" playsinline preload="auto" src="data:audio/wav;base64,UklGRhQLAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YfAKAAB/f3+AgIB/fXt6ent+gYSGhoN/e3Z0dHh9g4mMi4eBeXJub3N7hI2RkYyDeG9paW55hZCXl5GGeGxkY2l1hZOcnZeJeWlfXWNyhJWgo5yOemhbV15tgpakqaOSfGdXUVdof5eor6mYf2ZTTFFjfJartK+dg2dRRktdeJauubajh2hOQURWdJSvvryqjGpNPT5QbpKxwsOxkW1MOTdJaY+xxsm4l3BMNTFCYouxys+/nnRNMis6XIewzNXGpXlOMCYzVIGuztrOrH9RLyItTnyqzdvRsYRWMiIrSXakydrTtopbNiQpRXCfxdnVupBhOiUoQWuZwdfWvpVmPicmPWWUvdXXwptsQykmOmCOuNPYxaByRyslNluIs9DYyKV3TC4lNFaDrs7Yy6p9UTElMVF9qcrYza6DVjQmL014pMfXz7OIWzgnLUhyn8PW0beOYTwoK0Rtmr/U0ruTZkAqKkFnlLvS076Ya0QsKT1ij7fQ1MGdcUguKTpdibLO1MSidk0wKTdZhK7L1MenfFIzKTVUfqnI1MmrgVc2KTJQeaTF08yvh1w6KjFMdJ/B0s2zjGE9Ky9Ib5q+0c+3kWZBLS5EapW6z9C7lmtFLy1BZY+2zdC+m3BJMSw+YIqxy9HBn3VOMyw7W4WtydHDpHtSNiw4V4CoxtHGqIBXOS02U3ukw9DIrIVcPC00T3afwM/KsIphPy4zS3GavM7LtI9mQzAxR2yVuMzMt5RrRzExRGeQtMvNuphwSzMwQWKLsMjNvZ11TzYwPl6GrMbNwKF6UzgwPFqBqMPNwqV/WDswOlZ8o8HNxKmDXD4xOFJ3n73Mxq2IYUEyNk5ymrrLx7GNZUUzNUtulbfJyLSSakg0NEdpkLPIybeWb0w2NEVljK/GyrqadFA4M0Jgh6vDyryfeVQ7Mz9cgqfByr+jfVg9ND1YfaO+ycGngl1ANDxVeZ67ycKqh2FDNTpRdJq4yMSui2ZGNjlOcJW1xsWxkGpKODhLa5Gxxca0lG9NOTdIZ4yuw8a2mHNROzdFY4iqwca5nHhVPTdDX4Omvsa7oHxZQDdBW36ivMa9pIFdQjc/V3qeucW/p4VhRTg+VHaZtsTAq4pmSDk8UXGVs8PBro5qTDs7Tm2RsMLCsJJuTzw7S2mNrMDCs5ZzUz46SWWIqb7DtZp3VkA6RmGEpbzDuJ17WkI6RF6AobnCuaGAXkU7Q1p7nbfCu6SEYkc8QVd3mbTBvKiIZko9QFRzlbHAvaqMak0+P1Fvka6/vq2QblE/Pk5rjau9v7CUclRBPkxniae7v7KXdldDPkpkhaS5v7SbeltFPkhggaC3v7aef19HPkZdfJy1vreig2JKP0VaeZmyvrmlhmZMQERXdZWvvbqnimpPQUNUcZGsu7uqjm5SQkJSbY2purusknJVREJPaommuLyvlXZZRkFNZoWjtryxmXpcSEFLY4GftLuynH5gSkJKYH6csru0n4FjTEJIXXqYsLq1ooVnT0NHWnaUrbm2pIlqUURGV3KRqri3p4xuVEVGVW+Np7e4qZByV0dFU2yJpLW4q5N1WkhFUWiGobS4rZZ5XUpFT2WCnrK4r5l9YUxFTWJ+m7C4sJyAZE5GTF97l623sp+EZ1FGS113lKu2s6KHa1NHSlp0kai1s6SLblZISVhxjaa0tKaOcllKSVZuiqOytKiRdVxLSVRqhqCxtKqUeV9NSVJng52vtKyXfGJPSVFlf5qttK2af2VRSU9ifJertK6cg2hTSk5feZOps6+fhmtVS01ddZCmsrChiW5YTE1bco2ksbCjjHJbTUxZb4qhr7Glj3VdTkxXbIaerrGnknhgUExVaoOcrLGolXtjUkxUZ4CZqrGql39mVE1TZH2WqLCrmoJpVk1SYnqTpq+snIVsWE5RYHeQpK+snohvWk9QXnSNoq6toItyXFBQXHGKn6ytoo11X1FQWm6HnautpJB4YVNQWWyEmqmtpZN7ZFRQV2mBmKitppV+Z1ZQVmd+laatp5eBalhRVWV7kqSsqJmEbFpRVGN4j6KrqZuGb1xSVGF1jKCqqZ2Jcl5TU19zip2pqp+MdWFUU11wh5uoqqCOeGNWU1xuhJmnqqKQemZXU1trgZalqqOTfWhZVFppfpSjqaSVgGtbVFlnfJGiqaWXgm1cVVhleY+gqKWZhXBeVVdjd4yep6aaiHJgVldidImcpqacinVjV1dgcoeZpaadjHhlWVdfcISXpKafjnpnWldeboKVoqagkH1pXFddbH+Toaahkn9sXVdcan2Qn6WhlIJuX1hbaHqOnaWiloRwYVlbZniLm6SimIZzY1paZXaJmqOjmYh1ZFtaY3SHmKKjmop4ZlxaYnGElaGjm416aV1aYXCCk5+jnI58a15bYG6AkZ6inZB/bWBbX2x9j5yinpKBb2FbX2p7jZuhn5ODcWNcXml5i5mhn5WFc2VdXmd3iZegn5aHdmdeXmZ1hpafn5eJeGhfXmVzhJSen5iLempgXmRxgpKcn5mMfGxhXmNwgJCbn5qOfm5jXmNufo6anpuQgHBkX2JtfIyYnpuRgnJlX2JreoqXnZyShHRnYGFqeIiVnJyThnZpYWFpdoaUnJyUh3hqYmFodYSSm5yViXpsY2Fnc4KQmZyWi3xuZGFmcoCOmJuXjH5vZWJmcH6Nl5uXjX9xZ2Jlb32LlpqYj4FzaGNlbnuJlJqYkIN1aWRlbXmHk5mYkYR3a2RlbHiGkZiYkoZ4bGVla3aEkJeYkod6bmZlanWCjpaYk4l8b2dlanSBjZWYlIp9cWhlaXJ/i5SYlIt/c2lmaXF9ipOXlYyAdGtmaHB8iJKWlY2CdmxnaG96h5GWlY6Dd21oaG55hY+VlY+FeW5oaG54hI6UlZCGenBpaG13go2TlZCHfHFqaG11gYuSlJGIfXNraWx0f4qRlJGJf3RsaWxzfoiQlJGKgHVtamxzfYePk5GLgXduamxye4aOkpKMgnhva2txeoSNkpKMg3lxbGxweYOMkZGNhHtybGxweIKLkJGNhXxzbWxwd4GJj5GOhn10bmxvdn+Ij5GOh351b21vdX6HjpCOiH93cG1vdX2GjZCOiYB4cW5vdHyFjI+OiYF5cm5vdHuEi46OioJ6c29vc3qCio6OioN7dHBvc3mBiY2OioR8dXBvcnmAiIyNi4V9dnFwcnh/h4yNi4V+d3Jwcnd+houNi4Z/eHNxcnd+hYqMi4aAeXRxcnZ9hImMi4eBenRycnZ8g4iLi4eBe3VycnZ7goeLi4eCfHZzc3V7gYaKioiDfHdzc3V6gIaJioiDfXh0c3V6f4WJioiEfnl1dHV5f4SIiYiEf3l2dHV5foOHiYiEf3p2dHV5fYKGiIiEgHt3dXZ4fYKGiIeFgHx4dnZ4fIGFh4eFgXx4dnZ4fICEh4eFgX15d3Z4fICEhoeFgn16d3d4e3+DhYaFgn56eHd4e3+ChYaFgn97eHd4e36ChIWFgn98eXh5e36BhIWEgn98enh5e36Bg4SEgoB9enl5e32Ag4SEgoB9e3l5e32AgoODgoB9e3p6e31/goODgoB+fHp6e31/gYKDgoB+fHt7e31/gYKCgoB+fXt7e31+gIGCgYB/fXx7fH1+gIGBgYB/fXx8fH1+f4CBgYB/fn18fH1+f4CBgIB/fn19fX1+f4CAgIB/fn59fX1+f3+AgH9/fn5+fn5+f39/f39/fn5+fn5+f39/f39/fn5+fn5+"></audio>
+
+<h2>What the browser reports</h2>
+<table id="out"></table>
+<div id="verdict"><b>Tap button 1 to begin.</b>The two buttons use different audio paths. Which one you hear tells us where the problem is.</div>
+</div>
+<script>
+var rows = {}, ac = null, ticks = 0, t0 = 0, webTried = false, htmlTried = false;
+function set(k, v, cls){ rows[k] = { v: v, cls: cls || '' }; draw(); }
+function draw(){
+  var t = document.getElementById('out'), h = '';
+  for (var k in rows) h += '<tr><td>' + k + '</td><td class="' + rows[k].cls + '">' + rows[k].v + '</td></tr>';
+  t.innerHTML = h;
+}
+set('Browser', /CriOS/.test(navigator.userAgent) ? 'Chrome on iOS' :
+               /FxiOS/.test(navigator.userAgent) ? 'Firefox on iOS' :
+               /iPad|iPhone|iPod/.test(navigator.userAgent) ? 'Safari on iOS' : 'not iOS');
+set('Web Audio available', (window.AudioContext || window.webkitAudioContext) ? 'yes' : 'no',
+    (window.AudioContext || window.webkitAudioContext) ? 'good' : 'bad');
+try { var s = JSON.parse(localStorage.getItem('rc.toy.settings') || '{}');
+      set('Sound setting in the toys', s.sound === false ? 'OFF' : 'on', s.sound === false ? 'bad' : 'good'); }
+catch (e) { set('Sound setting in the toys', 'unreadable'); }
+
+document.getElementById('web').addEventListener('click', function(){
+  webTried = true;
+  var C = window.AudioContext || window.webkitAudioContext;
+  if (!C){ set('Result', 'no Web Audio at all', 'bad'); return verdict(); }
+  if (!ac) ac = new C();
+  set('Context state (before)', ac.state, ac.state === 'running' ? 'good' : 'bad');
+  if (ac.state !== 'running'){ var p = ac.resume(); if (p && p.catch) p.catch(function(){}); }
+  try { var b = ac.createBuffer(1, 1, ac.sampleRate), sn = ac.createBufferSource();
+        sn.buffer = b; sn.connect(ac.destination); sn.start(0); set('Silent unlock frame', 'played', 'good'); }
+  catch (e){ set('Silent unlock frame', 'failed: ' + e.message, 'bad'); }
+  var o = ac.createOscillator(), g = ac.createGain(), now = ac.currentTime;
+  o.type = 'sine'; o.frequency.setValueAtTime(660, now);
+  g.gain.setValueAtTime(0.14, now); g.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+  o.connect(g); g.connect(ac.destination); o.start(now); o.stop(now + 0.4);
+  set('Sample rate', ac.sampleRate + ' Hz');
+  t0 = ac.currentTime; ticks = 0;
+  setTimeout(function(){
+    set('Context state (after)', ac.state, ac.state === 'running' ? 'good' : 'bad');
+    var moved = ac.currentTime - t0;
+    set('Clock advanced', moved.toFixed(3) + ' s', moved > 0.2 ? 'good' : 'bad');
+    set('Audio engine is rendering', moved > 0.2 ? 'YES' : 'NO', moved > 0.2 ? 'good' : 'bad');
+    verdict();
+  }, 700);
+});
+
+document.getElementById('html').addEventListener('click', function(){
+  htmlTried = true;
+  var c = document.getElementById('clip');
+  c.currentTime = 0;
+  var p = c.play();
+  if (p && p.then) p.then(function(){ set('Normal audio playback', 'started', 'good'); verdict(); })
+                    .catch(function(e){ set('Normal audio playback', 'blocked: ' + e.name, 'bad'); verdict(); });
+  else { set('Normal audio playback', 'started', 'good'); verdict(); }
+});
+
+function verdict(){
+  var v = document.getElementById('verdict');
+  var rendering = rows['Audio engine is rendering'] && rows['Audio engine is rendering'].v === 'YES';
+  var soundOff = rows['Sound setting in the toys'] && rows['Sound setting in the toys'].v === 'OFF';
+  if (soundOff){
+    v.innerHTML = '<b>Sound is switched off in the toys.</b>Open any game, hold the gear button for a second, and turn Sound back on.';
+    return;
+  }
+  if (!webTried){ return; }
+  if (!rendering){
+    v.innerHTML = '<b>The browser is refusing to start Web Audio.</b>The clock is not advancing, so nothing can be heard. Reload this page and tap button 1 first, before anything else. If it still says NO, that is a browser-side block and worth telling me about.';
+    return;
+  }
+  v.innerHTML = '<b>Web Audio is running correctly.</b>' +
+    'The engine is rendering, so the browser believes it is making sound. ' +
+    'If you did not hear button 1 but you DID hear button 2, iOS is silencing Web Audio ' +
+    'specifically \u2014 check the side switch and Control Centre for Silent Mode, and the ringer ' +
+    'volume, not just the media volume. If you heard neither, it is the iPad volume or output ' +
+    'device (AirPlay, a paired speaker).';
+}
+draw();
+</script></body></html>

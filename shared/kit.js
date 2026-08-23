@@ -48,6 +48,12 @@ const Kit = {
     document.addEventListener('touchmove', e => {
       if (e.touches.length > 1) e.preventDefault();
     }, { passive: false });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) Sound.unlock();     // WebKit stays interrupted otherwise
+    });
+    window.addEventListener('pageshow', () => Sound.unlock());
+    document.addEventListener('touchend', () => Sound.unlock(), { passive: true });
+
     // Double-tap zoom, canvas only (tray buttons keep fast repeat-taps):
     let lastTap = 0;
     document.addEventListener('touchend', e => {
@@ -185,13 +191,33 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /* ---------- sounds ---------- */
 const Sound = {
-  ctx: null, on: true,
+  ctx: null, on: true, kicked: false,
+  /* See assets/toy.js for the full reasoning. Short version: WebKit (which is
+     every browser on iPad, Chrome included) has an 'interrupted' state that
+     'suspended' checks miss, needs a silent frame inside a real gesture before
+     it will start the hardware, and never resumes itself after an app switch. */
   unlock(){
-    if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    try { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e){ return; }
+    if (this.ctx.state !== 'running'){
+      const p = this.ctx.resume();
+      if (p && p.catch) p.catch(function(){});
+    }
+    if (!this.kicked){
+      this.kicked = true;
+      try {
+        const b = this.ctx.createBuffer(1, 1, this.ctx.sampleRate), s = this.ctx.createBufferSource();
+        s.buffer = b; s.connect(this.ctx.destination); s.start(0);
+      } catch(e){}
+    }
+  },
+  ready(){
+    if (!this.on || !this.ctx) return false;
+    if (this.ctx.state !== 'running'){ this.unlock(); return false; }
+    return true;
   },
   tone(freq, dur, type = 'sine', vol = 0.12, slide = 0){
-    if (!this.on || !this.ctx) return;
+    if (!this.ready()) return;
     const t = this.ctx.currentTime;
     const o = this.ctx.createOscillator(), g = this.ctx.createGain();
     o.type = type; o.frequency.setValueAtTime(freq, t);

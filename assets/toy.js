@@ -19,16 +19,42 @@ const SEEN_KEY = 'rc.toy.seen.' + SLUG;
 const hasSeen = () => { try { return localStorage.getItem(SEEN_KEY) === '1'; } catch(e){ return false; } };
 const markSeen = () => { try { localStorage.setItem(SEEN_KEY, '1'); } catch(e){} };
 
-/* ---------- sound: short, soft, tied to an action ---------- */
-let ac = null;
+/* ---------- sound: short, soft, tied to an action ----------
+   iOS is the hard case here, and Chrome on iPad is WebKit too:
+   - WebKit has a non-standard 'interrupted' state (app switch, a call,
+     another app taking audio). Resuming only from 'suspended' leaves the
+     context silent forever afterwards.
+   - iOS will not start the audio hardware until a source node has actually
+     run inside a real user gesture, so unlocking needs a silent frame.
+   - Scheduling notes while the context is not running piles them all at
+     currentTime 0, and they fire at once (or not at all) on resume. */
+let ac = null, kicked = false;
 export const Sound = {
+  get state(){ return ac ? ac.state : 'none'; },
   unlock(){
     if (!settings.sound) return;
-    if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
-    if (ac.state === 'suspended') ac.resume();
+    try { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e){ return; }
+    if (ac.state !== 'running'){
+      const p = ac.resume();
+      if (p && p.catch) p.catch(() => {});
+    }
+    if (!kicked){
+      kicked = true;
+      try {
+        const b = ac.createBuffer(1, 1, ac.sampleRate), s = ac.createBufferSource();
+        s.buffer = b; s.connect(ac.destination); s.start(0);
+      } catch(e){}
+    }
+  },
+  ready(){
+    if (!settings.sound) return false;
+    if (!ac) return false;
+    if (ac.state !== 'running'){ this.unlock(); return false; }
+    return true;
   },
   tone(f, d = .12, type = 'sine', vol = .07, slide = 0){
-    if (!settings.sound || !ac) return;
+    if (!this.ready()) return;
     const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
     o.type = type; o.frequency.setValueAtTime(f, t);
     if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, f + slide), t + d);
@@ -36,7 +62,7 @@ export const Sound = {
     o.connect(g).connect(ac.destination); o.start(t); o.stop(t + d + .04);
   },
   noise(d = .1, vol = .05, cut = 1800, high = false){
-    if (!settings.sound || !ac) return;
+    if (!this.ready()) return;
     const n = Math.max(1, Math.floor(ac.sampleRate * d));
     const b = ac.createBuffer(1, n, ac.sampleRate), ch = b.getChannelData(0);
     for (let i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n);
@@ -268,7 +294,11 @@ export function boot(opts){
   let last = performance.now(), running = true;
   document.addEventListener('visibilitychange', () => {
     running = !document.hidden; last = performance.now();
+    if (running) Sound.unlock();          // WebKit leaves it interrupted otherwise
   });
+  addEventListener('pageshow', () => Sound.unlock());
+  // some WebKit builds only honour the unlock on touchend, so take that too
+  document.addEventListener('touchend', () => Sound.unlock(), { passive: true });
   const step = t => {
     let dt = (t - last) / 1000; last = t;
     dt = Math.max(0, Math.min(.05, dt || .016));
