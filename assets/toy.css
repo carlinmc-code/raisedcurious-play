@@ -1,0 +1,75 @@
+/* Shared shell for the toddler/preschool toys. Field Guide palette, big
+   targets, nothing that flashes. Every game inherits this. */
+:root{
+  --cream:#FAF7F0; --cream-dark:#F0EBE0; --ink:#1C1A16; --ink-mid:#4A4540;
+  --ink-light:#8C8278; --forest:#2D5A3D; --rust:#C4522A; --gold:#C9922A;
+  --sky:#2A6B8A; --rule:#DDD5C8; --paper:#fff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+body{
+  background:var(--cream); color:var(--ink);
+  font-family:'Lato',system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased; user-select:none; -webkit-user-select:none;
+  -webkit-touch-callout:none; touch-action:manipulation;
+}
+canvas{display:block;position:fixed;inset:0;width:100%;height:100%;touch-action:none}
+
+/* header */
+.toy-bar{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:8px;
+  padding:max(10px,env(safe-area-inset-top)) 12px 10px;pointer-events:none}
+.toy-bar > *{pointer-events:auto}
+.toy-btn{width:56px;height:56px;border-radius:18px;border:2px solid var(--rule);background:var(--paper);
+  display:grid;place-items:center;font-size:26px;line-height:1;cursor:pointer;
+  box-shadow:0 2px 0 rgba(28,26,22,.06)}
+.toy-btn:active{transform:translateY(1px) scale(.97)}
+.toy-btn.on{background:var(--gold);border-color:transparent}
+.toy-name{font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:700;
+  background:var(--paper);border:2px solid var(--rule);border-radius:999px;padding:9px 18px}
+.toy-spacer{flex:1}
+
+/* the one big action button every toy has */
+.toy-go{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));
+  z-index:20;min-width:230px;padding:20px 34px;border:none;border-radius:26px;
+  background:var(--rust);color:#fff;font-size:23px;font-weight:800;letter-spacing:.01em;
+  box-shadow:0 5px 0 #9C3F1F;cursor:pointer}
+.toy-go:active{transform:translateX(-50%) translateY(3px);box-shadow:0 2px 0 #9C3F1F}
+.toy-go.alt{background:var(--forest);box-shadow:0 5px 0 #204630}
+.toy-go.alt:active{box-shadow:0 2px 0 #204630}
+
+/* piece tray */
+.toy-tray{position:fixed;left:0;right:0;bottom:0;z-index:19;display:flex;gap:10px;overflow-x:auto;
+  padding:12px 12px calc(12px + env(safe-area-inset-bottom));background:rgba(250,247,240,.96);
+  border-top:2px solid var(--rule);scrollbar-width:none}
+.toy-tray::-webkit-scrollbar{display:none}
+.toy-tray button{flex:0 0 auto;width:74px;height:74px;border-radius:20px;border:3px solid var(--rule);
+  background:var(--paper);display:grid;place-items:center;cursor:pointer}
+.toy-tray button.sel{border-color:var(--gold);background:#FDF3DC}
+.toy-tray button svg{width:52px;height:52px;pointer-events:none}
+.toy-tray button span{font-size:30px;pointer-events:none}
+
+/* settings sheet */
+.toy-sheet{position:fixed;inset:0;z-index:40;background:rgba(28,26,22,.45);display:none;
+  align-items:flex-end;justify-content:center}
+.toy-sheet.open{display:flex}
+.toy-sheet .card{background:var(--cream);width:min(520px,100%);border-radius:26px 26px 0 0;
+  padding:22px 22px calc(26px + env(safe-area-inset-bottom));border-top:3px solid var(--rule)}
+.toy-sheet h2{font-family:Georgia,serif;font-size:22px;margin-bottom:4px}
+.toy-sheet .sub{color:var(--ink-light);font-size:14px;margin-bottom:16px}
+.toy-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 0;
+  border-top:1px solid var(--rule);font-size:17px;font-weight:700}
+.toy-switch{width:66px;height:38px;border-radius:999px;border:none;background:var(--rule);position:relative;cursor:pointer;flex:none}
+.toy-switch::after{content:"";position:absolute;top:4px;left:4px;width:30px;height:30px;border-radius:50%;
+  background:#fff;transition:left .16s ease}
+.toy-switch.on{background:var(--forest)}
+.toy-switch.on::after{left:32px}
+.toy-close{width:100%;margin-top:18px;padding:16px;border:none;border-radius:18px;background:var(--ink);
+  color:var(--cream);font-size:18px;font-weight:800;cursor:pointer}
+.toy-real{display:block;margin-top:12px;padding:14px 16px;border:2px solid var(--forest);border-radius:18px;
+  background:#fff;color:var(--ink);text-decoration:none;font-size:15px}
+.toy-real b{display:block;font-family:Georgia,serif;font-size:17px}
+.toy-real span{color:var(--forest);font-family:'Courier New',monospace;font-size:11px;
+  letter-spacing:.16em;text-transform:uppercase;font-weight:700}
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
