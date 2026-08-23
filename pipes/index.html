@@ -8,12 +8,13 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* Turn on the faucet and route the water: drag ramps to steer the stream,
    spin the waterwheel, fill the bucket, soak the duck. */
 Kit.init('🚰', 'Water Pipes');
+    Kit.guide([{type:'drag',from:[.44,.40],to:[.64,.52]}]);
 
 Kit.loadMatter().then(Matter => {
   const { Engine, Bodies, Body, Composite } = Matter;

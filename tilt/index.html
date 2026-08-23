@@ -16,12 +16,13 @@
 <body>
 <canvas id="stage"></canvas>
 <button id="tiltBtn"><span><span class="big">🌀</span>Tap to start tilting!<span class="small">Tilt the iPad to roll the marble into the cup</span></span></button>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* Tilt the device to roll the marble through the maze into the cup.
    The iPad itself is the controller. Touch-drag steers as a fallback. */
 Kit.init('🌀', 'Tilt Maze');
+    Kit.guide([{type:'drag',from:[.50,.50],to:[.30,.34]}]);
 const ctx = Kit.ctx;
 
 let gx = 0, gy = 0, sensorOK = false;

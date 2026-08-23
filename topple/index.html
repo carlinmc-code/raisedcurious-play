@@ -8,12 +8,13 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* Stack blocks and animals, then knock them down with the wrecking ball
    or a good hard flick. Building and destroying are both the game. */
 Kit.init('🧱', 'Tower Topple');
+    Kit.guide([{type:'tap',x:.5,y:.38},{type:'tap',x:.5,y:.38}]);
 
 Kit.loadMatter().then(Matter => {
   const { Engine, Bodies, Body, Composite, Constraint } = Matter;

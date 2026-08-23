@@ -8,7 +8,7 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* Marble Run v2. Draw ramps, then build contraptions: funnels, trampolines,
@@ -16,6 +16,7 @@
    cup that erupts when it fills. Every piece does something predictable so
    they chain into machines. */
 Kit.init('🔵', 'Marble Run');
+    Kit.guide([{type:'tap',x:.42,y:.24},{type:'tap',x:.58,y:.42}]);
 
 Kit.loadMatter().then(Matter => {
   const { Engine, Bodies, Body, Composite } = Matter;

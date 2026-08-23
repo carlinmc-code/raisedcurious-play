@@ -8,12 +8,13 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* Drop crumbs and watch the ants find them and carry them home.
    Dig tunnels in the dirt with your finger. Slow and calm on purpose. */
 Kit.init('🐜', 'Bug Garden');
+    Kit.guide([{type:'tap',x:.38,y:.58},{type:'tap',x:.66,y:.48}]);
 const ctx = Kit.ctx;
 
 let ants = [], crumbs = [], flowers = [], dirtCell = 10, DG = null, DW = 0, DH = 0, dirtTop = 0;

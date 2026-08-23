@@ -28,6 +28,9 @@ Plain HTML/JS/CSS, no framework, no build. Push to main -> Cloudflare Pages auto
 - Audit: grep 'drawEmoji(' - first arg must be ctx in every call in this repo.
 - New game: add a hub tile in index.html (gradient style matching neighbors) same commit.
 - Serve locally (python3 -m http.server) and load the changed game once before pushing.
+- Every game gets a wordless first-run finger guide: kit games call Kit.guide([...])
+  right after Kit.init, toy games pass `coach:` to boot(). Steps are fractions of
+  the play area, so they hold at any screen size. A new game without one is a bug.
 
 ## Deploy
 Commit to main with a short imperative message. Cloudflare deploys in ~1 min.
@@ -43,4 +46,6 @@ returning visitor can get today's game.js against a four-hour-old shell. When
 you change assets/toy.js or assets/toy.css, bump the ?v= on the import in
 EVERY game that uses it, in the same commit:
   grep -l "assets/toy.js" */game.js | wc -l   # must equal the number you bumped
-shared/kit.js has the same exposure and is currently unversioned.
+shared/kit.js is versioned the same way (?v=2 in all 15 kit games).
+assets/common.js, behind the 11 standalone science games, is still
+unversioned - version it the first time you change it.

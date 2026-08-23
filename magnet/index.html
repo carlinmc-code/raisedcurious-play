@@ -8,13 +8,14 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* Drag the big magnet around the junk drawer. Metal things leap to it,
    wooden things ignore it. Tap the second magnet to flip its pole and
    feel attract vs repel. */
 Kit.init('🧲', 'Magnet Lab');
+    Kit.guide([{type:'drag',from:[.50,.26],to:[.28,.55]}]);
 const ctx = Kit.ctx;
 
 const magnet = { x: 0, y: 0, r: 46, pid: null };

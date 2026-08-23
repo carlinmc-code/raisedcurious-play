@@ -8,13 +8,14 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* Orbit Lab. Place planets and suns, then fling rockets and watch gravity
    bend their paths. Full laps earn a starburst. Slow landings plant a flag.
    The black hole eats everything with a shloop. */
 Kit.init('🪐', 'Orbit Lab');
+    Kit.guide([{type:'drag',from:[.50,.34],to:[.74,.30]}]);
 const ctx = Kit.ctx;
 
 const bodies = [];   // {kind:'planet'|'sun'|'hole', x, y, r, gm, hue, ph}

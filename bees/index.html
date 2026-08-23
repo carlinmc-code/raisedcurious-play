@@ -8,13 +8,14 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* Plant flowers anywhere. Bees fly out, collect pollen from open blooms,
    and carry it home to fill the honey jar. Watch out: when the jar gets
    full, a sneaky bear comes for it. Poke the bear to shoo it away! */
 Kit.init('🐝', 'Honey Harvest');
+    Kit.guide([{type:'tap',x:.38,y:.40},{type:'tap',x:.66,y:.56}]);
 const ctx = Kit.ctx;
 
 let flowers = [], bees = [], jars = 0, honey = 0, bear = null, sparkles = [];

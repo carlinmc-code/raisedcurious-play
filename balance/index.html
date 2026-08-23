@@ -8,12 +8,13 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* Put animals on the seesaw. Big animals are HEAVY. How many mice does
    it take to balance an elephant? The seesaw smiles when it's level. */
 Kit.init('⚖️', 'Balance Zoo');
+    Kit.guide([{type:'tap',x:.5,y:.32},{type:'tap',x:.5,y:.32}]);
 
 Kit.loadMatter().then(Matter => {
   const { Engine, Bodies, Body, Composite, Constraint } = Matter;

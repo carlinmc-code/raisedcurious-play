@@ -30,6 +30,7 @@ const Kit = {
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, px: e.clientX, py: e.clientY, down: true, t0: performance.now() });
       this.taps.push({ x: e.clientX, y: e.clientY, t: performance.now() });
       Sound.unlock();
+      this._coachStop();
     });
     cv.addEventListener('pointermove', e => {
       const p = this.pointers.get(e.pointerId);
@@ -66,9 +67,76 @@ const Kit = {
       const dt = Math.min(0.05, (t - last) / 1000 || 0.016);
       last = t;
       fn(dt, t / 1000);
+      this._coachDraw(dt);          // painted last, so it sits over the game
       requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
+  },
+
+  /* ---------- the finger guide ----------
+     Same idea as assets/toy.js: our player cannot read, so the tutorial is a
+     hand doing the gesture. Steps are fractions of the play area (below the
+     title, above the tray), it loops three times, and it disappears on the
+     first touch and is remembered per game. Call Kit.guide([...]) after init.
+       {type:'tap',  x, y}                  - a spot to press
+       {type:'drag', from:[x,y], to:[x,y]}  - a line to draw with one finger */
+  _coach: null,
+  guide(steps){
+    const ok = (steps || []).filter(s => s && (s.type === 'tap' || s.type === 'drag'));
+    if (!ok.length) return;
+    let seen = false;
+    try { seen = localStorage.getItem('rc.kit.seen.' + this._slug()) === '1'; } catch(e){}
+    if (seen) return;
+    this._coach = { steps: ok, i: 0, t: 0, loops: 0 };
+  },
+  _slug(){
+    return location.pathname.replace(/\/(index\.html)?$/, '').split('/').filter(Boolean).pop() || 'game';
+  },
+  _coachStop(){
+    if (!this._coach) return;
+    this._coach = null;
+    try { localStorage.setItem('rc.kit.seen.' + this._slug(), '1'); } catch(e){}
+  },
+  _coachDraw(dt){
+    const c = this._coach; if (!c) return;
+    const DUR = { tap: 1.15, drag: 1.9 };
+    const step = c.steps[c.i];
+    c.t += dt;
+    if (c.t >= DUR[step.type]){
+      c.t = 0;
+      if (++c.i >= c.steps.length){ c.i = 0; if (++c.loops >= 3){ this._coach = null; return; } }
+    }
+    const s = c.steps[c.i], k = Math.min(1, c.t / DUR[s.type]);
+    const padY = 84, padH = Math.max(1, this.H - padY - 100);   // clear of title and tray
+    const X = v => v * this.W, Y = v => padY + v * padH;
+    const ctx = this.ctx;
+    let hx, hy, ring;
+    if (s.type === 'drag'){
+      const e = k < .18 ? 0 : k > .88 ? 1 : (k - .18) / .70;
+      const g = e * e * (3 - 2 * e);
+      hx = X(s.from[0] + (s.to[0] - s.from[0]) * g);
+      hy = Y(s.from[1] + (s.to[1] - s.from[1]) * g);
+      ctx.save();
+      ctx.setLineDash([9, 9]);
+      ctx.strokeStyle = 'rgba(250,247,240,.5)'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(X(s.from[0]), Y(s.from[1]));
+      ctx.lineTo(X(s.to[0]), Y(s.to[1]));
+      ctx.stroke();
+      ctx.restore();
+      ring = .34;
+    } else {
+      hx = X(s.x); hy = Y(s.y); ring = (c.t % .58) / .58;
+    }
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,' + ((1 - ring) * .85).toFixed(3) + ')';
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(hx, hy, 26 + ring * 34, 0, 7); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.18)';
+    ctx.beginPath(); ctx.arc(hx, hy, 24, 0, 7); ctx.fill();
+    ctx.font = '44px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('\u{1F446}', hx + 15, hy + 34);
+    ctx.restore();
   },
 
   loadMatter(){
@@ -94,6 +162,7 @@ const Kit = {
         wrap.querySelectorAll('.kit-tool').forEach(x => x.classList.remove('active'));
         b.classList.add('active');
         Sound.tone(600, 0.08, 'sine', 0.06, 200);
+        Kit._coachStop();
         onPick(it.id, b);
       });
       wrap.appendChild(b);

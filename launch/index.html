@@ -8,12 +8,13 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* Pull the slingshot back, let go, watch the arc. Knock over the can
    pyramid, pop the balloons. Pull further = fly further. */
 Kit.init('🚀', 'Launch Lab');
+    Kit.guide([{type:'drag',from:[.16,.72],to:[.05,.90]}]);
 
 Kit.loadMatter().then(Matter => {
   const { Engine, Bodies, Body, Composite } = Matter;

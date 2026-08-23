@@ -8,12 +8,13 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* Falling-sand toy. Pour sand, water, dirt, and seeds with your finger.
    Water soaks into dirt; seeds sprout flowers where the dirt is wet. */
 Kit.init('⏳', 'Sand & Water');
+    Kit.guide([{type:'drag',from:[.34,.24],to:[.60,.42]}]);
 
 const EMPTY = 0, SAND = 1, WATER = 2, DIRT = 3, WETDIRT = 4, SEED = 5, PLANT = 6, FLOWER = 7, STONE = 8;
 const COLORS = {

@@ -8,13 +8,14 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* Battery-toy playroom. Tap the floor to drop a wind-up animal, tap a toy to
    switch it on or off, drag it anywhere. They waddle, bump off the walls and
    each other, and flash along to one shared tune. Nothing to win. */
 Kit.init('\u{1F9A2}', 'Dancing Toys');
+    Kit.guide([{type:'tap',x:.5,y:.45},{type:'tap',x:.5,y:.45}]);
 const ctx = Kit.ctx;
 
 const KINDS = ['swan', 'duck', 'chick'];

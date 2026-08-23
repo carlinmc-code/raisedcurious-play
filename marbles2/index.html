@@ -8,7 +8,7 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* Marble Run 2: a snap-together construction kit, like the plastic ones.
@@ -16,6 +16,7 @@
    signature vortex bowl that spirals marbles down through its center.
    Tap with the marble tool to drop a marble exactly where you want. */
 Kit.init('🎢', 'Marble Run 2');
+    Kit.guide([{type:'tap',x:.42,y:.24},{type:'tap',x:.58,y:.42}]);
 
 Kit.loadMatter().then(Matter => {
   const { Engine, Bodies, Body, Composite } = Matter;

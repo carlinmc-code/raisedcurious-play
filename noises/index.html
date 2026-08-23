@@ -8,13 +8,14 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* A wall of pads that make noises. Pick a kit at the bottom, then bash away —
    tap, hold, or drag a finger across the pads to run them together. Notes are
    all on friendly scales, so nothing a child plays can sound wrong. */
 Kit.init('🎹', 'Noise Maker');
+    Kit.guide([{type:'tap',x:.30,y:.50},{type:'tap',x:.62,y:.50}]);
 const ctx = Kit.ctx;
 
 /* ---------- one extra sound source: filtered noise, for real drums ----------

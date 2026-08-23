@@ -8,13 +8,14 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js"></script>
+<script src="../shared/kit.js?v=2"></script>
 <script>
 'use strict';
 /* Flick paint at the canvas. It splats, then drips down while it's wet.
    Colors really mix: blue + yellow makes green. Hit spin to fling
    everything outward like a salad spinner. */
 Kit.init('🎨', 'Paint Physics');
+    Kit.guide([{type:'drag',from:[.25,.62],to:[.75,.34]}]);
 const ctx = Kit.ctx;
 
 /* persistent painting lives on an offscreen canvas */
