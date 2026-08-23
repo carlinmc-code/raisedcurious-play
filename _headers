@@ -3,8 +3,8 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(self), microphone=(), geolocation=()
   Cache-Control: public, max-age=300
-# assets/toy.js is the shared runtime for the toddler toys, so it must not
-# outlive the per-game files that call into it. A day-long cache here means
-# a new game.js can meet a stale shell and break on a signature change.
-/assets/*
-  Cache-Control: public, max-age=300
+# No Cache-Control rule for /assets/*: Cloudflare Pages honours Cache-Control
+# from this file for HTML only. Every JS and CSS response is served with the
+# platform default (public, max-age=14400) no matter what is written here --
+# verified against /assets/toy.js, /marblerun/game.js and /shared/kit.js.
+# Shared scripts must therefore be versioned in the URL, not cached shorter.

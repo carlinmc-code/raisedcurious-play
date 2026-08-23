@@ -31,5 +31,16 @@ Plain HTML/JS/CSS, no framework, no build. Push to main -> Cloudflare Pages auto
 
 ## Deploy
 Commit to main with a short imperative message. Cloudflare deploys in ~1 min.
-No cache-busters needed here (HTML navigations revalidate); shared/kit.js changes are
-picked up on reload.
+
+CACHE-BUSTERS ARE REQUIRED FOR SHARED SCRIPTS. Cloudflare Pages honours the
+Cache-Control in _headers for HTML only; every JS/CSS response is served with
+its own `public, max-age=14400` regardless of what _headers says (checked
+against /assets/toy.js, /marblerun/game.js and /shared/kit.js). So an HTML
+page revalidates but the script it pulls in can be four hours stale.
+
+That matters because assets/toy.js is one shared runtime behind ten games: a
+returning visitor can get today's game.js against a four-hour-old shell. When
+you change assets/toy.js or assets/toy.css, bump the ?v= on the import in
+EVERY game that uses it, in the same commit:
+  grep -l "assets/toy.js" */game.js | wc -l   # must equal the number you bumped
+shared/kit.js has the same exposure and is currently unversioned.
