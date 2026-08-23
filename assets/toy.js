@@ -28,7 +28,7 @@ const markSeen = () => { try { localStorage.setItem(SEEN_KEY, '1'); } catch(e){}
      run inside a real user gesture, so unlocking needs a silent frame.
    - Scheduling notes while the context is not running piles them all at
      currentTime 0, and they fire at once (or not at all) on resume. */
-let ac = null, kicked = false;
+let ac = null, kicked = false, pending = 0;
 export const Sound = {
   get state(){ return ac ? ac.state : 'none'; },
   unlock(){
@@ -50,8 +50,14 @@ export const Sound = {
   ready(){
     if (!settings.sound) return false;
     if (!ac) return false;
-    if (ac.state !== 'running'){ this.unlock(); return false; }
-    return true;
+    if (ac.state === 'running'){ pending = 0; return true; }
+    this.unlock();
+    /* Before the context has ever rendered, currentTime is still 0, so a note
+       scheduled now plays the moment it starts rather than being thrown away.
+       That keeps the very first tap audible, which this repo treats as
+       non-negotiable. Bounded, so a stuck context cannot bank a pile of notes
+       that all fire at once later. */
+    return ac.currentTime === 0 && pending++ < 3;
   },
   tone(f, d = .12, type = 'sine', vol = .07, slide = 0){
     if (!this.ready()) return;

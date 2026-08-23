@@ -191,7 +191,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /* ---------- sounds ---------- */
 const Sound = {
-  ctx: null, on: true, kicked: false,
+  ctx: null, on: true, kicked: false, pending: 0,
   /* See assets/toy.js for the full reasoning. Short version: WebKit (which is
      every browser on iPad, Chrome included) has an 'interrupted' state that
      'suspended' checks miss, needs a silent frame inside a real gesture before
@@ -213,8 +213,11 @@ const Sound = {
   },
   ready(){
     if (!this.on || !this.ctx) return false;
-    if (this.ctx.state !== 'running'){ this.unlock(); return false; }
-    return true;
+    if (this.ctx.state === 'running'){ this.pending = 0; return true; }
+    this.unlock();
+    // See assets/toy.js: keep the first tap audible, but bounded so a stuck
+    // context cannot bank notes that all fire at once on resume.
+    return this.ctx.currentTime === 0 && (this.pending = (this.pending || 0) + 1) <= 3;
   },
   tone(freq, dur, type = 'sine', vol = 0.12, slide = 0){
     if (!this.ready()) return;

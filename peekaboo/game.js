@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=3';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=4';
 /* A house of shutters. Tap one, it swings open and somebody is behind it.
    Tap again and it closes. Open them all and the house celebrates. Object
    permanence, which is the actual developmental thing here. */

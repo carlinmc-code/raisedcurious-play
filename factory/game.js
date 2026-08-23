@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=3';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=4';
 /* A silly machine. Press the hopper, a ball is born; it rides belts, drops
    down chutes, gets painted, bounces off a paddle and lands in the bin.
    The whole point is watching one ball make the whole trip. */

@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=3';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=4';
 /* Drop chunky things, build a pile, then knock it over. Simple box physics:
    gravity, ground rest, a support test against whatever is below, and a
    wrecking ball for the part every toddler actually wants. */
