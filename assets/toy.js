@@ -144,6 +144,8 @@ function drawCoach(c, ctx, a){
 /* ---------- shell ---------- */
 export function boot(opts){
   document.title = opts.title + ' · RaisedCurious Play';
+  for (const r of (opts.settingsRows || []))          // defaults for a game's own switches
+    if (!(r.key in settings)) settings[r.key] = r.def !== false;
   const bar = document.createElement('div');
   bar.className = 'toy-bar';
   bar.innerHTML =
@@ -160,6 +162,10 @@ export function boot(opts){
     '<p class="sub">Hold the gear for a second to get here. Nothing is saved anywhere but this device.</p>' +
     '<div class="toy-row"><span>Sound</span><button class="toy-switch" data-k="sound" aria-label="Sound"></button></div>' +
     '<div class="toy-row"><span>Movement and effects</span><button class="toy-switch" data-k="motion" aria-label="Movement"></button></div>' +
+    /* a game can add its own switches, e.g. Frog World's nature ambience */
+    (opts.settingsRows || []).map(r =>
+      '<div class="toy-row"><span>' + r.label + '</span>' +
+      '<button class="toy-switch" data-k="' + r.key + '" aria-label="' + r.label + '"></button></div>').join('') +
     '<div class="toy-row"><span>Show the finger guide again</span><button class="toy-mini" id="toy-coach">Show me</button></div>' +
     (opts.tryReal ? '<a class="toy-real" href="https://raisedcurious.com/experiments/?id=' + opts.tryReal.id + '">' +
       '<span>Try it for real</span><b>' + opts.tryReal.name + '</b></a>' : '') +
