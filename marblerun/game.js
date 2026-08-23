@@ -217,7 +217,7 @@ function drawPiece(ctx, c, r, t){
 /* ---------- shell ---------- */
 let dragCell = null;
 const api = boot({
-  title: 'Marble Run',
+  title: 'Marble Run Builder',
   tryReal: { id: 123, name: 'Paper Roller Coaster' },
   onReset(){ load(presetName); },
   onResize(a){ layout(a); },
