@@ -46,6 +46,8 @@ returning visitor can get today's game.js against a four-hour-old shell. When
 you change assets/toy.js or assets/toy.css, bump the ?v= on the import in
 EVERY game that uses it, in the same commit:
   grep -l "assets/toy.js" */game.js | wc -l   # must equal the number you bumped
-shared/kit.js is versioned the same way (?v=2 in all 15 kit games).
+shared/kit.js is versioned the same way. A per-game game.js is cached for
+the same four hours, so when you change one, version its <script src> too
+or the device that already played it keeps the old build.
 assets/common.js, behind the 11 standalone science games, is still
 unversioned - version it the first time you change it.
