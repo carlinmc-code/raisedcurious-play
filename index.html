@@ -9,6 +9,9 @@ document.querySelector('#count').textContent=games.length;
   var go=document.querySelector('#flight-go'), fill=document.querySelector('#flight-fill'),
       sub=document.querySelector('#flight-sub'), sw=navigator.serviceWorker;
   if(!sw){ go.style.display='none'; sub.textContent='This browser cannot save the games offline.'; return; }
+  /* The hub loads neither shared runtime, so it has to register the worker
+     itself or the button below would wait on a registration nobody made. */
+  if(location.protocol.indexOf('http')===0) sw.register('/sw.js?v=ad26f406370d').catch(function(){});
   function say(t){ sub.textContent=t; }
   function pct(p){ fill.style.width=Math.round(p*100)+'%'; }
   sw.addEventListener('message', function(e){

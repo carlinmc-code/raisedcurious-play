@@ -59,8 +59,20 @@ for (const f of files){
 for (const u of referenced(files)) urls.add(u);
 
 const list = [...urls].sort();
+
+/* The version is a hash of the whole site, with two things taken out of the
+   input: the stamps this script writes (otherwise stamping changes the hash,
+   which changes the stamp, and it never settles) and offline-manifest.js
+   itself, which is generated and contains the version. */
+const TEXT = /\.(html|js|css|webmanifest|json|svg)$/i;
+const unstamp = t => t.replace(/(\/(?:sw|offline-manifest)\.js)\?v=[0-9a-f]*/g, '$1');
 const hash = crypto.createHash('sha1');
-for (const f of files) hash.update(f).update(fs.readFileSync(path.join(ROOT, f.slice(1))));
+for (const f of files){
+  if (f === '/offline-manifest.js') continue;
+  const full = path.join(ROOT, f.slice(1));
+  hash.update(f);
+  hash.update(TEXT.test(f) ? unstamp(fs.readFileSync(full, 'utf8')) : fs.readFileSync(full));
+}
 const version = hash.digest('hex').slice(0, 12);
 
 const bytes = files.reduce((n, f) => n + fs.statSync(path.join(ROOT, f.slice(1))).size, 0);
@@ -74,5 +86,27 @@ self.OFFLINE = {
 };
 `;
 fs.writeFileSync(path.join(ROOT, 'offline-manifest.js'), out);
+
+/* Stamp the version into every URL that loads the worker or its manifest.
+   Cloudflare gives JS a four hour browser cache no matter what _headers says,
+   and it will happily cache the site's 200-fallback HTML against a path that
+   did not exist yet - which is exactly what happened the first time sw.js was
+   deployed, leaving registration broken for four hours because the worker was
+   served as text/html. A version in the URL sidesteps the whole problem, and
+   makes every later worker update land immediately too. */
+function stamp(file, patterns){
+  const full = path.join(ROOT, file);
+  let text = fs.readFileSync(full, 'utf8'), before = text;
+  for (const re of patterns) text = text.replace(re, (m, pre) => pre + '?v=' + version);
+  if (text !== before){ fs.writeFileSync(full, text); return true; }
+  return false;
+}
+const SW = [/(\/sw\.js)(\?v=[0-9a-f]*)?/g];
+const MAN = [/(\/offline-manifest\.js)(\?v=[0-9a-f]*)?/g];
+let stamped = 0;
+if (stamp('sw.js', MAN)) stamped++;
+for (const f of ['assets/toy.js', 'shared/kit.js', 'assets/common.js', 'index.html'])
+  if (fs.existsSync(path.join(ROOT, f)) && stamp(f, SW)) stamped++;
+
 console.log('offline-manifest.js  version ' + version + '  ' + list.length + ' urls  ' +
-            (bytes / 1024).toFixed(0) + ' KB');
+            (bytes / 1024).toFixed(0) + ' KB' + (stamped ? '  (stamped ' + stamped + ' files)' : ''));
