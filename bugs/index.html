@@ -22,9 +22,11 @@ Kit.guide([{type:'tap',x:.34,y:.28},{type:'tap',x:.64,y:.40}]);
 const ctx = Kit.ctx;
 
 let ants = [], crumbs = [], flowers = [], puffs = [], eggs = [];
-const EGG_TIME = 5;      // seconds from laid to hatched
+const EGG_TIME = 7;      // seconds from laid to hatched
 const PER_EGG = 2;       // ants out of each one
 const MAX_ANTS = 80;     // the nursery pauses here; past this it is a smear, not a colony
+const LIFE = [80, 170];  // how long an ant stays before it wanders off
+const GOODBYE = 14;      // it starts heading for the edge this long before the end
 const LAY_GAP = 2.5;     // a new egg this often, while there is room for one
 let layIn = 0;
 let dirtCell = 10, DG = null, DW = 0, DH = 0, dirtTop = 0;
@@ -87,12 +89,25 @@ function layEgg(){
 }
 function newAnt(x, y){
   return { x, y, a: rand(0, 6.28), carrying: false, speed: rand(26, 44), wob: rand(0, 6),
-           job: 'forage', route: null, sit: 0, sitAt: null };
+           job: 'forage', route: null, sit: 0, sitAt: null,
+           age: 0, life: rand(LIFE[0], LIFE[1]), goodbye: false, exit: null };
+}
+/* Nothing dies in Bug Garden. When an ant's time is nearly up it finishes what
+   it is doing, comes up out of the nest and walks off the side of the screen,
+   which leaves room for the next one to hatch. That is what keeps the colony
+   at the cap rather than frozen at it. */
+function sayGoodbye(ant){
+  ant.goodbye = true;
+  ant.sit = 0;
+  ant.carrying = false;
+  ant.exit = { x: ant.x < Kit.W / 2 ? -34 : Kit.W + 34, y: dirtTop - rand(26, 96) };
+  if (ant.y > dirtTop) leaveNest(ant);
+  else ant.route = null;
 }
 function hatch(e){
   for (let i = 0; i < PER_EGG; i++){
     const ant = newAnt(e.x + rand(-6, 6), e.y + rand(-4, 4));
-    leaveNest(ant, 'nursery');            // a new ant walks out of the nest itself
+    leaveNest(ant);                       // a new ant walks out of the nest itself
     ants.push(ant);
   }
   puffs.push({ x: e.x, y: e.y - 6, e: '✨', age: 0 });
@@ -147,10 +162,27 @@ function sendTo(ant, id){
   ant.route = rooms[id].path.slice();
   ant.sit = 0;
 }
-function leaveNest(ant, fromId){                    // back along its own corridor and out
+/* The way out is worked out from where the ant IS, not from what it was doing.
+   Reading it off the job was wrong for anything whose job was not a room name,
+   and sent ants in the deep rooms out along the pantry's corridor - which does
+   not connect to them, so they pressed into solid dirt until their route
+   happened to change. Only the central shaft joins the two levels. */
+function exitRoute(ant){
+  const top = { x: entrance.x, y: dirtTop - 26 };
+  if (ant.y <= dirtTop) return [top];
+  if (Math.abs(ant.x - entrance.x) < Kit.W * 0.07)      // already in the shaft
+    return [{ x: entrance.x, y: ant.y }, top];
+  let best = null, bd = 1e9;
+  for (const id in rooms){
+    const r = rooms[id], d = Math.hypot(r.x - ant.x, r.y - ant.y);
+    if (d < bd){ bd = d; best = r; }
+  }
+  if (!best) return [top];
+  return [{ x: best.x, y: best.y }, { x: entrance.x, y: best.y }, top];
+}
+function leaveNest(ant){                            // out through its own corridor
   ant.job = 'leaving';
-  ant.route = (rooms[fromId] || rooms.pantry).path.slice().reverse();
-  ant.route[ant.route.length - 1] = { x: entrance.x, y: dirtTop - 26 };
+  ant.route = exitRoute(ant);
 }
 
 Kit.loop((dt, t) => {
@@ -173,15 +205,23 @@ Kit.loop((dt, t) => {
   }
   for (const ant of ants){
     let target = null, arrive = 12;
+    ant.age += dt;
+    if (!ant.goodbye && ant.age > ant.life - GOODBYE) sayGoodbye(ant);
+    if (ant.goodbye && ant.y > dirtTop && ant.age > ant.life + 20){
+      ant.age = ant.life;                        // try the way out again from here
+      leaveNest(ant);
+    }
 
-    if (ant.sit > 0){                              // busy in a room
+    if (ant.goodbye && ant.y < dirtTop && (!ant.route || !ant.route.length)){
+      target = ant.exit; arrive = 8;              // out through the grass and away
+    } else if (ant.sit > 0){                              // busy in a room
       ant.sit -= dt;
       if (ant.sit <= 0){
         if (ant.job === 'potty'){
           puffs.push({ x: ant.x, y: ant.y - 10, e: '💧', age: 0 });
           Sound.squeak();
         }
-        leaveNest(ant, ant.job);
+        leaveNest(ant);
       }
     } else if (ant.route && ant.route.length){
       target = ant.route[0];
@@ -227,10 +267,11 @@ Kit.loop((dt, t) => {
       ant.y += (r.y + Math.cos(t * 1.1 + ant.wob) * r.r * .30 - ant.y) * dt * 2.2;
       ant.a += dt * .6;
     } else {
-      const sp = ant.route ? ant.speed * 1.25 : ant.speed;
+      const sp = ant.goodbye ? ant.speed * .82 : (ant.route ? ant.speed * 1.25 : ant.speed);
       const nx = ant.x + Math.cos(ant.a) * sp * dt;
       const ny = ant.y + Math.sin(ant.a) * sp * dt;
-      if (nx > 8 && nx < Kit.W - 8 && ny > 60 && ny < Kit.H - 40 && isDug(nx, ny)){
+      const leaving = ant.goodbye && ny < dirtTop;      // let this one past the edge
+      if ((leaving || (nx > 8 && nx < Kit.W - 8)) && ny > 60 && ny < Kit.H - 40 && isDug(nx, ny)){
         ant.x = nx; ant.y = ny;
       } else {
         ant.a += Math.PI * rand(0.4, 0.7);
@@ -247,7 +288,7 @@ Kit.loop((dt, t) => {
       }
     }
     // after dropping off, some ants have somewhere else to be
-    if (ant.job === 'leaving' && ant.route && ant.route.length === 3 && !ant.detoured){
+    if (ant.job === 'leaving' && !ant.goodbye && ant.route && ant.route.length === 3 && !ant.detoured){
       ant.detoured = 1;
       const r = Math.random();
       if (r < .28) sendTo(ant, 'potty');
@@ -256,6 +297,8 @@ Kit.loop((dt, t) => {
     }
     if (ant.job === 'forage') ant.detoured = 0;
   }
+
+  ants = ants.filter(a => a.x > -40 && a.x < Kit.W + 40);
 
   for (let i = crumbs.length - 1; i >= 0; i--)
     if (crumbs[i].amount <= 0) crumbs.splice(i, 1);
