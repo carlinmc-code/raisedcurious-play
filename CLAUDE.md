@@ -39,8 +39,15 @@ Plain HTML/JS/CSS, no framework, no build. Push to main -> Cloudflare Pages auto
   today's HTML and can never be stuck on a cached site.
 - matter.js is served from shared/matter.min.js, NOT a CDN. Six games will not
   start without it and a game that needs the internet to open defeats the point.
-- Cloudflare serves sw.js with its own 4h browser cache, so a service worker
-  change can take up to four hours to reach a device that has already been here.
+- NEVER request a NEW path on play.raisedcurious.com before its deploy has
+  landed. Cloudflare answers unknown paths with the site's 200-fallback HTML
+  and caches THAT against the path for four hours, and does not reconsider when
+  the real file arrives. It cost matter.js on the live site: six games were
+  served HTML where they expected a library. Check new files on the deployment's
+  own *.pages.dev URL, which has no zone cache.
+- Because of the above, scripts/precache.js stamps the site version onto sw.js,
+  offline-manifest.js, matter.min.js and the icons, so every deploy lands on a
+  URL the edge has never seen. That also removes the 4h lag on worker updates.
 
 ## Required checks before any push
 - node --check every inline <script> (extract it) and shared/kit.js.
