@@ -1,6 +1,6 @@
 /* Feed the Farm - who lives here, what they like, and what they say.
    Kept out of the game code so another animal is an entry rather than a new
-   branch. `voice` is a little score for the synth in assets/toy.js: each step
+   branch. `voice` is a little score for the synth in assets/toy.js?v=e18d652ba5d1 each step
    is a note, `at` is when it starts. */
 
 export const FOODS = {

@@ -1,5 +1,5 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=7';
-import { createTable, joinSheet, codeFromUrl, online } from '../assets/table.js?v=2';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=e18d652ba5d1';
+import { createTable, joinSheet, codeFromUrl, online } from '../assets/table.js?v=e18d652ba5d1';
 import { LINES, empty, other, isFull, winLine, robotCell } from './rules.js?v=1';
 
 /* Three in a Row.

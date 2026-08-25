@@ -13,7 +13,7 @@
    assets are versioned in their URLs already; and the cache is named after a
    hash of the whole site, so a deploy quietly abandons the previous one. */
 
-importScripts('/offline-manifest.js?v=6db832acd82b');
+importScripts('/offline-manifest.js?v=e18d652ba5d1');
 
 const VERSION = self.OFFLINE.version;
 const CACHE = 'rc-play-' + VERSION;

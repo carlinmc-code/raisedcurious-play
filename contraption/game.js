@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=7';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=e18d652ba5d1';
 /* Place gadgets, press GO, watch a ball find its way through them. Nothing
    can fail: if the ball misses everything it just rolls off the bottom and
    you try again. Gadgets are one-tap, snapped to a coarse grid. */

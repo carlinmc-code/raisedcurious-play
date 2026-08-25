@@ -55,9 +55,12 @@ Plain HTML/JS/CSS, no framework, no build. Push to main -> Cloudflare Pages auto
   never a boolean or a comparison. A wrong 7th argument is silent and invisible.
 - New game: add a hub tile in index.html (gradient style matching neighbors) same commit.
 - Serve locally (python3 -m http.server) and load the changed game once before pushing.
-- node scripts/precache.js    (regenerates the offline manifest)
-- node scripts/checkversions.js  (every page must ask for the SAME ?v= of a
-  shared file; they drifted once and only some games got the new build)
+- node scripts/precache.js    (regenerates the offline manifest AND stamps the
+  site version onto every shared file reference, so you no longer hand-bump
+  ?v= anywhere. Forgetting to bump kit.js by hand is what left the physics
+  games pointing at a poisoned matter.js URL.)
+- node scripts/checkversions.js  (belt and braces: every page must ask for the
+  SAME version of a shared file)
 - Every game gets a wordless first-run finger guide: kit games call Kit.guide([...])
   right after Kit.init, toy games pass `coach:` to boot(). Steps are fractions of
   the play area, so they hold at any screen size. A new game without one is a bug.

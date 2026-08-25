@@ -256,7 +256,7 @@ export function boot(opts){
   holdBtn(bar.querySelector('#toy-reset'), () => { Sound.whoosh(); opts.onReset && opts.onReset(); });
 
   /* iOS Safari ignores user-scalable=no, so block zoom gestures directly.
-     Same guards as shared/kit.js - see repo CLAUDE.md rule 5, never remove. */
+     Same guards as shared/kit.js?v=e18d652ba5d1 - see repo CLAUDE.md rule 5, never remove. */
   for (const ev of ['gesturestart', 'gesturechange', 'gestureend'])
     document.addEventListener(ev, e => e.preventDefault());
   document.addEventListener('touchmove', e => {
@@ -342,4 +342,4 @@ export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 /* Offline. Registering from here as well as the hub means a child who
    opens a game directly still gets the site saved on their device. */
 if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0)
-  navigator.serviceWorker.register('/sw.js?v=6db832acd82b').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=e18d652ba5d1').catch(function(){});

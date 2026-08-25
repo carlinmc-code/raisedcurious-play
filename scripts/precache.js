@@ -122,5 +122,39 @@ if (stamp('shared/kit.js', MATTER)) stamped++;
 for (const f of ['index.html', 'manifest.webmanifest'])
   if (stamp(f, ICONS)) stamped++;
 
-console.log('offline-manifest.js  version ' + version + '  ' + list.length + ' urls  ' +
+/* Every shared file gets the site version too, everywhere it is referenced.
+   Hand-written ?v= numbers had to be remembered and bumped by a person, and
+   the person forgot: kit.js's contents changed without its version moving, so
+   pages kept the cached old copy - which still pointed at a poisoned
+   matter.js URL. One stamp, applied to everything, cannot be forgotten. */
+const SHARED = ['toy.js', 'toy.css', 'kit.js', 'kit.css', 'table.js', 'qr.js', 'common.js', 'play.css'];
+const SHARED_RE = SHARED.map(n =>
+  new RegExp('((?:\\.\\./)?(?:assets|shared)/' + n.replace('.', '\\.') + ')(\\?v=[^"\'\\s)]*)?', 'g'));
+for (const f of files){
+  if (!/\.(html|js)$/i.test(f)) continue;
+  if (f === '/offline-manifest.js') continue;
+  if (stamp(f.slice(1), SHARED_RE)) stamped++;
+}
+
+/* Stamping rewrites the very references the URL list was read from, so after
+   a stamping pass the list is one generation behind. Rebuild it here rather
+   than making the next person run the script twice and wonder why the first
+   run disagreed with the second. The version is unaffected: it is computed
+   from content with the stamps normalised out. */
+let finalList = list;
+if (stamped){
+  const again = new Set(['/']);
+  for (const f of files){
+    again.add(f);
+    if (f.endsWith('/index.html')) again.add(f.replace(/index\.html$/, ''));
+  }
+  for (const u of referenced(files)) again.add(u);
+  finalList = [...again].sort();
+  fs.writeFileSync(path.join(ROOT, 'offline-manifest.js'),
+    out.replace(JSON.stringify(list, null, 0)
+      .replace(/","/g, '",\n    "').replace('["', '[\n    "').replace('"]', '"\n  ]'),
+      JSON.stringify(finalList, null, 0)
+      .replace(/","/g, '",\n    "').replace('["', '[\n    "').replace('"]', '"\n  ]')));
+}
+console.log('offline-manifest.js  version ' + version + '  ' + finalList.length + ' urls  ' +
             (bytes / 1024).toFixed(0) + ' KB' + (stamped ? '  (stamped ' + stamped + ' files)' : ''));

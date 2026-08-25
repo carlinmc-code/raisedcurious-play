@@ -80,7 +80,7 @@ const Kit = {
   },
 
   /* ---------- the finger guide ----------
-     Same idea as assets/toy.js: our player cannot read, so the tutorial is a
+     Same idea as assets/toy.js?v=e18d652ba5d1 our player cannot read, so the tutorial is a
      hand doing the gesture. Steps are fractions of the play area (below the
      title, above the tray), it loops three times, and it disappears on the
      first touch and is remembered per game. Call Kit.guide([...]) after init.
@@ -152,7 +152,7 @@ const Kit = {
     return new Promise((res, rej) => {
       if (window.Matter) return res(window.Matter);
       const s = document.createElement('script');
-      s.src = '../shared/matter.min.js?v=6db832acd82b';
+      s.src = '../shared/matter.min.js?v=e18d652ba5d1';
       s.onload = () => res(window.Matter);
       s.onerror = () => rej(new Error('matter.js failed to load'));
       document.head.appendChild(s);
@@ -201,7 +201,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 /* ---------- sounds ---------- */
 const Sound = {
   ctx: null, on: true, kicked: false, pending: 0,
-  /* See assets/toy.js for the full reasoning. Short version: WebKit (which is
+  /* See assets/toy.js?v=e18d652ba5d1 for the full reasoning. Short version: WebKit (which is
      every browser on iPad, Chrome included) has an 'interrupted' state that
      'suspended' checks miss, needs a silent frame inside a real gesture before
      it will start the hardware, and never resumes itself after an app switch. */
@@ -224,7 +224,7 @@ const Sound = {
     if (!this.on || !this.ctx) return false;
     if (this.ctx.state === 'running'){ this.pending = 0; return true; }
     this.unlock();
-    // See assets/toy.js: keep the first tap audible, but bounded so a stuck
+    // See assets/toy.js?v=e18d652ba5d1 keep the first tap audible, but bounded so a stuck
     // context cannot bank notes that all fire at once on resume.
     return this.ctx.currentTime === 0 && (this.pending = (this.pending || 0) + 1) <= 3;
   },
@@ -253,4 +253,4 @@ const Sound = {
 /* Offline. Registering from here as well as the hub means a child who
    opens a game directly still gets the site saved on their device. */
 if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0)
-  navigator.serviceWorker.register('/sw.js?v=6db832acd82b').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=e18d652ba5d1').catch(function(){});
