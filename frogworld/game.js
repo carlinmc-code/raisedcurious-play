@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=5';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=7';
 import { SPECIES, HABITATS } from './data.js?v=1';
 
 /* Frog World.
@@ -619,11 +619,15 @@ const api = boot({
   onResize(a){ build(a); },
   onDown(x, y){
     const wy = y + cam;
-    // a bug always wins: it is the most satisfying thing on the screen
-    for (const b of bugs){
-      if (!b.gone && Math.hypot(b.x - x, b.y - wy) < 34){
-        if (tongueAt(b)) return;
-        b.base += rand(-30, 30); return;
+    /* A bug wins the tap only when there is a frog that can actually shoot at
+       it. Before that there is nothing to eat with, so an insect drifting over
+       the eggs was quietly swallowing taps and doing nothing with them. */
+    if (frog && frog.mode && !frog.tongue){
+      for (const b of bugs){
+        if (!b.gone && Math.hypot(b.x - x, b.y - wy) < 34){
+          if (tongueAt(b)) return;
+          b.base += rand(-30, 30); return;
+        }
       }
     }
     if (stage === 'egg'){

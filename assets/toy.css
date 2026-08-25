@@ -103,3 +103,5 @@ body.has-tray .toy-go{bottom:calc(110px + env(safe-area-inset-bottom))}
 .tbl-pad button{padding:18px 0;font-size:24px;font-weight:800;border:2px solid var(--rule);
   background:#fff;border-radius:16px;cursor:pointer;touch-action:manipulation}
 .tbl-pad button:active{background:var(--cream-dark)}
+.tbl-offline{text-align:center;font-size:17px;line-height:1.6;padding:18px 6px;color:var(--ink)}
+.tbl-big[disabled]{background:var(--rule);color:var(--ink-light);cursor:default}

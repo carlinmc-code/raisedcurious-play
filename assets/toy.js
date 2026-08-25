@@ -338,3 +338,8 @@ export function boot(opts){
 export const rand = (a, b) => a + Math.random() * (b - a);
 export const pick = a => a[Math.floor(Math.random() * a.length)];
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* Offline. Registering from here as well as the hub means a child who
+   opens a game directly still gets the site saved on their device. */
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0)
+  navigator.serviceWorker.register('/sw.js').catch(function(){});

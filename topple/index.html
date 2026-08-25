@@ -8,7 +8,7 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<script src="../shared/kit.js?v=5"></script>
+<script src="../shared/kit.js?v=6"></script>
 <script>
 'use strict';
 /* Stack blocks and animals, then knock them down with the wrecking ball
@@ -31,6 +31,14 @@ Kit.loadMatter().then(Matter => {
     { icon: '🦆', make: (x, y) => Bodies.rectangle(x, y, 52, 52, { restitution: 0.3 }), draw: b => glyph(b, '🦆', 58) }
   ];
   let tool = SHAPES[0], wreck = null, wreckRope = null;
+
+  /* Dynamite. Three at most, a five second fuse each, and one going off will
+     set off any of the others close enough - which is the best thing about
+     having three. The blast pushes bodies away from it, mass-scaled, because
+     gravity here is a mass-scaled force and an unscaled push would fling the
+     light pieces into orbit and barely nudge the heavy ones. */
+  const FUSE = 5, MAX_STICKS = 3;
+  let sticks = [], booms = [], placing = 'shape';
   const items = []; // {body, draw}
 
   function floorY(){ return Kit.H - 30; }
@@ -55,6 +63,49 @@ Kit.loadMatter().then(Matter => {
     if (items.length > 60){ const old = items.shift(); Composite.remove(world, old.body); }
   }
 
+  function blastRadius(){ return Math.min(Kit.W, Kit.H) * 0.42; }
+  function placeStick(x, y){
+    if (sticks.length >= MAX_STICKS){          // already three: say no, gently
+      for (const s of sticks) s.nudge = .5;
+      Sound.click();
+      return;
+    }
+    const body = Bodies.rectangle(x, y, 22, 54, { restitution: 0.08, friction: .6 });
+    Composite.add(world, body);
+    sticks.push({ body, t: 0, nudge: 0 });
+    Sound.squeak();
+  }
+  function boom(s){
+    const p = { x: s.body.position.x, y: s.body.position.y };
+    Composite.remove(world, s.body);
+    const R = blastRadius();
+    const targets = items.map(i => i.body).concat(wreck ? [wreck] : []);
+    for (const b of targets){
+      const dx = b.position.x - p.x, dy = b.position.y - p.y;
+      const d = Math.hypot(dx, dy);
+      if (d > R) continue;
+      const k = (1 - d / R) * 0.055;
+      const ux = d < 1 ? 0 : dx / d, uy = d < 1 ? -1 : dy / d;
+      Body.applyForce(b, b.position, {
+        x: ux * k * b.mass,
+        y: (uy - 0.55) * k * b.mass          // a lift, so things go up not just out
+      });
+    }
+    for (const o of sticks){                  // set off its neighbours
+      if (o === s) continue;
+      const d = Math.hypot(o.body.position.x - p.x, o.body.position.y - p.y);
+      if (d < R * 0.8) o.t = Math.max(o.t, FUSE - 0.35);
+    }
+    booms.push({ x: p.x, y: p.y, age: 0, r: R });
+    for (let i = 0; i < 22; i++){
+      const a = rand(0, 6.28), sp = rand(90, 420);
+      booms.push({ x: p.x, y: p.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        age: 0, bit: true, col: pick(['#FF9330', '#FFD24A', '#E8552A']) });
+    }
+    Sound.tone(70, .45, 'sawtooth', .09, -30);
+    Sound.thud();
+  }
+
   function swingWreck(){
     if (wreck){ Composite.remove(world, [wreck, wreckRope]); wreck = null; Sound.click(); return; }
     const ax = Kit.W * 0.5, ay = -10;
@@ -69,16 +120,19 @@ Kit.loadMatter().then(Matter => {
     for (const it of items) Composite.remove(world, it.body);
     items.length = 0;
     if (wreck){ Composite.remove(world, [wreck, wreckRope]); wreck = null; }
+    for (const s of sticks) Composite.remove(world, s.body);
+    sticks = []; booms = [];
     Sound.ding();
   }
 
   Kit.tray(
     [...SHAPES.map((s, i) => ({ icon: s.icon, id: 'shape' + i })),
-     { icon: '🪨', id: 'wreck' }, { icon: '🧹', id: 'reset' }],
+     { icon: '🧨', id: 'dyn' }, { icon: '🪨', id: 'wreck' }, { icon: '🧹', id: 'reset' }],
     id => {
       if (id === 'wreck') swingWreck();
       else if (id === 'reset') reset();
-      else tool = SHAPES[Number(id.slice(5))];
+      else if (id === 'dyn') placing = 'dynamite';
+      else { placing = 'shape'; tool = SHAPES[Number(id.slice(5))]; }
     }, 'shape0');
 
   /* drag: grab nearest body and fling it; tap empty space: place a shape */
@@ -86,7 +140,10 @@ Kit.loadMatter().then(Matter => {
   Kit.canvas.addEventListener('pointerdown', e => {
     const found = Matter.Query.point(items.map(i => i.body).concat(wreck ? [wreck] : []), { x: e.clientX, y: e.clientY });
     if (found.length){ grab = found[0]; grabPid = e.pointerId; }
-    else if (e.clientY < Kit.H - 100) spawn(e.clientX, e.clientY);
+    else if (e.clientY < Kit.H - 100){
+      if (placing === 'dynamite') placeStick(e.clientX, e.clientY);
+      else spawn(e.clientX, e.clientY);
+    }
   });
   Kit.canvas.addEventListener('pointerup', e => { if (e.pointerId === grabPid){ grab = null; grabPid = null; } });
 
@@ -120,6 +177,23 @@ Kit.loadMatter().then(Matter => {
         Body.setVelocity(grab, { x: (p.x - grab.position.x) * 0.35, y: (p.y - grab.position.y) * 0.35 });
       }
     }
+    /* fuses */
+    for (let i = sticks.length - 1; i >= 0; i--){
+      const st = sticks[i];
+      st.t += dt;
+      st.nudge = Math.max(0, st.nudge - dt * 2);
+      const left = FUSE - st.t;
+      if (left <= 0){ sticks.splice(i, 1); boom(st); continue; }
+      // a hiss that gets busier as it burns down
+      if (Math.random() < dt * (2 + (1 - left / FUSE) * 9)) Sound.crumble();
+    }
+    for (let i = booms.length - 1; i >= 0; i--){
+      const b = booms[i];
+      b.age += dt;
+      if (b.bit){ b.vy += 900 * dt; b.x += b.vx * dt; b.y += b.vy * dt; }
+      if (b.age > (b.bit ? 0.75 : 0.4)) booms.splice(i, 1);
+    }
+
     Engine.update(engine, Math.min(dt, 0.033) * 1000);
 
     const g = ctx.createLinearGradient(0, 0, 0, Kit.H);
@@ -132,6 +206,52 @@ Kit.loadMatter().then(Matter => {
       ctx.beginPath(); ctx.arc(x, floorY(), 8, Math.PI, 0); ctx.fill();
     }
     for (const it of items) it.draw(it.body);
+
+    /* dynamite: the stick, a fuse that visibly burns down, and a flash near
+       the end. The shrinking fuse is the only countdown a child who cannot
+       read is going to follow. */
+    for (const st of sticks){
+      const b = st.body, left = Math.max(0, FUSE - st.t), k = left / FUSE;
+      const soon = left < 1.6;
+      const pulse = soon ? (0.5 + Math.sin(st.t * 26) * 0.5) : 0;
+      ctx.save();
+      ctx.translate(b.position.x, b.position.y);
+      ctx.rotate(b.angle + st.nudge * Math.sin(st.t * 40) * 0.12);
+      if (pulse > 0.5){
+        ctx.fillStyle = 'rgba(255,120,60,.35)';
+        ctx.beginPath(); ctx.arc(0, 0, 44, 0, 6.28); ctx.fill();
+      }
+      drawEmoji(ctx, '🧨', 0, 4, 56);
+      // the fuse, burning from the top down
+      ctx.strokeStyle = '#E8DFC8'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, -26);
+      ctx.lineTo(0, -26 - 20 * k);
+      ctx.stroke();
+      const sx = 0, sy = -26 - 20 * k;
+      ctx.fillStyle = pulse > 0.5 ? '#FFF3B0' : '#FFB020';
+      ctx.beginPath(); ctx.arc(sx, sy, 4 + Math.random() * 2.5, 0, 6.28); ctx.fill();
+      ctx.restore();
+    }
+    for (const b of booms){
+      if (b.bit){
+        const kk = 1 - b.age / 0.75;
+        ctx.globalAlpha = Math.max(0, kk);
+        ctx.fillStyle = b.col;
+        ctx.beginPath(); ctx.arc(b.x, b.y, 5 * kk + 1, 0, 6.28); ctx.fill();
+        ctx.globalAlpha = 1;
+      } else {
+        const kk = b.age / 0.4;
+        ctx.strokeStyle = 'rgba(255,180,90,' + Math.max(0, 1 - kk).toFixed(2) + ')';
+        ctx.lineWidth = 10 * (1 - kk) + 2;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * kk, 0, 6.28); ctx.stroke();
+      }
+    }
+    // how many sticks you have left, as sticks
+    for (let i = 0; i < MAX_STICKS; i++){
+      const on = i < MAX_STICKS - sticks.length;
+      drawEmoji(ctx, '🧨', Kit.W - 26 - i * 30, 30, 24, 0, on ? 1 : 0.22);
+    }
     if (wreck){
       ctx.strokeStyle = '#9AA3C7'; ctx.lineWidth = 5;
       ctx.beginPath(); ctx.moveTo(wreckRope.pointA.x, wreckRope.pointA.y);

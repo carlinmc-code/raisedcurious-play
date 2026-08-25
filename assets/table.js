@@ -145,8 +145,19 @@ export function joinSheet(opts){
     const s = panel.querySelector('#tbl-status');
     if (s) s.textContent = text;
   }
-  return { el, open, close, showCode, status, showPad };
+  function offline(){
+    panel.innerHTML = '<p class="tbl-offline">\u2708\uFE0F<br>Playing on two devices needs the internet.<br>' +
+      'Everything else here works without it \u2014 try the robot.</p>';
+    el.querySelector('#tbl-host').disabled = true;
+    el.querySelector('#tbl-join').disabled = true;
+  }
+  return { el, open, close, showCode, status, showPad, offline };
 }
+
+/* Two devices need a network by definition. Everything else on this site
+   works on a plane, so this one has to say why it cannot rather than sit
+   there reconnecting forever. */
+export const online = () => navigator.onLine !== false;
 
 /* A code in the address bar means someone followed a QR. */
 export function codeFromUrl(){

@@ -28,12 +28,29 @@ Plain HTML/JS/CSS, no framework, no build. Push to main -> Cloudflare Pages auto
    Never remove them. UI controls get touch-action: manipulation.
 6. Trays overflow-x scroll; test layouts at 390px width (iPhone) and 1024px (iPad).
 
+## Offline (the whole site works with no network)
+- sw.js + offline-manifest.js + manifest.webmanifest make this an installable
+  app that can be saved in full (~500 KB) from the button on the hub.
+- REGENERATE THE MANIFEST when files are added, removed, or a ?v= changes:
+    node scripts/precache.js
+  It fails quietly if you forget - the site still works online, and only the
+  plane-mode download is stale. That is exactly why it is in the checks below.
+- Pages are network-first, assets cache-first, so an online visitor always gets
+  today's HTML and can never be stuck on a cached site.
+- matter.js is served from shared/matter.min.js, NOT a CDN. Six games will not
+  start without it and a game that needs the internet to open defeats the point.
+- Cloudflare serves sw.js with its own 4h browser cache, so a service worker
+  change can take up to four hours to reach a device that has already been here.
+
 ## Required checks before any push
 - node --check every inline <script> (extract it) and shared/kit.js.
 - Audit drawEmoji: first arg must be ctx AND the 7th must be numeric opacity,
   never a boolean or a comparison. A wrong 7th argument is silent and invisible.
 - New game: add a hub tile in index.html (gradient style matching neighbors) same commit.
 - Serve locally (python3 -m http.server) and load the changed game once before pushing.
+- node scripts/precache.js    (regenerates the offline manifest)
+- node scripts/checkversions.js  (every page must ask for the SAME ?v= of a
+  shared file; they drifted once and only some games got the new build)
 - Every game gets a wordless first-run finger guide: kit games call Kit.guide([...])
   right after Kit.init, toy games pass `coach:` to boot(). Steps are fractions of
   the play area, so they hold at any screen size. A new game without one is a bug.

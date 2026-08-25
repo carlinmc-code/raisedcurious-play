@@ -3,3 +3,8 @@ export function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
 export function rand(a,b){return a+Math.random()*(b-a)}
 export function pointerPos(e,canvas){const r=canvas.getBoundingClientRect();return {x:(e.clientX-r.left)*(canvas.width/(devicePixelRatio||1))/r.width,y:(e.clientY-r.top)*((canvas.height/(devicePixelRatio||1))/r.height)}}
 export function shell(title,subtitle){document.title=`${title} · RaisedCurious Play`;document.querySelector('[data-title]').textContent=title;document.querySelector('[data-subtitle]').textContent=subtitle}
+
+/* Offline. Registering from here as well as the hub means a child who
+   opens a game directly still gets the site saved on their device. */
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0)
+  navigator.serviceWorker.register('/sw.js').catch(function(){});

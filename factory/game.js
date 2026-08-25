@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=5';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=7';
 /* Ball Factory.
    A grid of machine parts you lay out yourself. Balls are real: they fall,
    land on a belt, get carried, run off the end, drop to whatever is below.

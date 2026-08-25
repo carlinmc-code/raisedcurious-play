@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=6';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=7';
 import { ANIMALS, FOODS, ALWAYS } from './data.js?v=1';
 
 /* Feed the Farm.

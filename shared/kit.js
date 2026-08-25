@@ -145,11 +145,14 @@ const Kit = {
     ctx.restore();
   },
 
+  /* matter.js is served from this site, not a CDN. Six games will not start
+     without it, and a game that needs the internet to open is no use on a
+     plane - which is the whole point of the offline mode. */
   loadMatter(){
     return new Promise((res, rej) => {
       if (window.Matter) return res(window.Matter);
       const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js';
+      s.src = '../shared/matter.min.js?v=0.19.0';
       s.onload = () => res(window.Matter);
       s.onerror = () => rej(new Error('matter.js failed to load'));
       document.head.appendChild(s);
@@ -246,3 +249,8 @@ const Sound = {
   whoosh(){ this.tone(300, 0.35, 'sawtooth', 0.03, 600); },
   click(){ this.tone(900, 0.05, 'square', 0.04, -200); }
 };
+
+/* Offline. Registering from here as well as the hub means a child who
+   opens a game directly still gets the site saved on their device. */
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0)
+  navigator.serviceWorker.register('/sw.js').catch(function(){});

@@ -1,0 +1,16 @@
+{
+  "name": "RaisedCurious Play",
+  "short_name": "Play",
+  "description": "Physics, science and building toys for curious kids. Works with no internet once saved.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FAF7F0",
+  "theme_color": "#2D5A3D",
+  "icons": [
+    { "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

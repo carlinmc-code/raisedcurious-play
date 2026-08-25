@@ -1,5 +1,5 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=5';
-import { createTable, joinSheet, codeFromUrl } from '../assets/table.js?v=1';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=7';
+import { createTable, joinSheet, codeFromUrl, online } from '../assets/table.js?v=2';
 import { LINES, empty, other, isFull, winLine, robotCell } from './rules.js?v=1';
 
 /* Three in a Row.
@@ -178,6 +178,7 @@ function startRemote(){
   reset(false);
   if (!sheet) sheet = joinSheet({ onHost: () => connect(null), onJoin: c => connect(c) });
   sheet.open();
+  if (!online()){ sheet.offline(); return; }      // on a plane, say so
   const link = codeFromUrl();
   if (link) connect(link);
 }
