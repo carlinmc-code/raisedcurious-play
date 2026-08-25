@@ -21,7 +21,12 @@ Kit.init('🐜', 'Bug Garden');
 Kit.guide([{type:'tap',x:.34,y:.28},{type:'tap',x:.64,y:.40}]);
 const ctx = Kit.ctx;
 
-let ants = [], crumbs = [], flowers = [], puffs = [];
+let ants = [], crumbs = [], flowers = [], puffs = [], eggs = [];
+const EGG_TIME = 5;      // seconds from laid to hatched
+const PER_EGG = 2;       // ants out of each one
+const MAX_ANTS = 80;     // the nursery pauses here; past this it is a smear, not a colony
+const LAY_GAP = 2.5;     // a new egg this often, while there is room for one
+let layIn = 0;
 let dirtCell = 10, DG = null, DW = 0, DH = 0, dirtTop = 0;
 let rooms = {}, entrance = { x: 0, y: 0 }, j1 = { x: 0, y: 0 }, j2 = { x: 0, y: 0 };
 let stored = 0, eggWob = 0;
@@ -66,12 +71,32 @@ function build(){
       digAt(cx + (room.x - cx) * k, room.y, shaftR * 0.9);
     digAt(room.x, room.y, rr);
   }
-  ants = Array.from({ length: 14 }, () => ({
-    x: cx + rand(-30, 30), y: dirtTop - rand(20, 90),
-    a: rand(0, 6.28), carrying: false, speed: rand(26, 44), wob: rand(0, 6),
-    job: 'forage', route: null, sit: 0, sitAt: null
-  }));
+  ants = Array.from({ length: 14 }, () => newAnt(cx + rand(-30, 30), dirtTop - rand(20, 90)));
   crumbs = []; flowers = []; puffs = []; stored = 0;
+  eggs = []; layIn = 0;
+  for (let i = 0; i < 3; i++) layEgg();
+}
+function layEgg(){
+  const r = rooms.nursery;
+  if (!r || eggs.length >= 4) return;
+  eggs.push({
+    x: r.x + rand(-r.r * .48, r.r * .48),
+    y: r.y + rand(-r.r * .18, r.r * .40),
+    t: 0, wob: rand(0, 6.28)
+  });
+}
+function newAnt(x, y){
+  return { x, y, a: rand(0, 6.28), carrying: false, speed: rand(26, 44), wob: rand(0, 6),
+           job: 'forage', route: null, sit: 0, sitAt: null };
+}
+function hatch(e){
+  for (let i = 0; i < PER_EGG; i++){
+    const ant = newAnt(e.x + rand(-6, 6), e.y + rand(-4, 4));
+    leaveNest(ant, 'nursery');            // a new ant walks out of the nest itself
+    ants.push(ant);
+  }
+  puffs.push({ x: e.x, y: e.y - 6, e: '✨', age: 0 });
+  Sound.squeak();
 }
 function digAt(px, py, r){
   const cx = Math.floor(px / dirtCell), cy = Math.floor((py - dirtTop) / dirtCell), cr = Math.ceil(r / dirtCell);
@@ -122,14 +147,30 @@ function sendTo(ant, id){
   ant.route = rooms[id].path.slice();
   ant.sit = 0;
 }
-function goHome(ant){                              // back up the shaft and out
+function leaveNest(ant, fromId){                    // back along its own corridor and out
   ant.job = 'leaving';
-  ant.route = rooms.pantry.path.slice().reverse();
+  ant.route = (rooms[fromId] || rooms.pantry).path.slice().reverse();
   ant.route[ant.route.length - 1] = { x: entrance.x, y: dirtTop - 26 };
 }
 
 Kit.loop((dt, t) => {
   eggWob += dt;
+
+  /* the nursery */
+  for (let i = eggs.length - 1; i >= 0; i--){
+    const e = eggs[i];
+    e.t += dt;
+    if (e.t >= EGG_TIME){
+      eggs.splice(i, 1);
+      if (ants.length + PER_EGG <= MAX_ANTS) hatch(e);
+      layIn = 1.2;
+    }
+  }
+  layIn -= dt;                                  // keep a few on the go, staggered
+  if (layIn <= 0){
+    layIn = LAY_GAP;
+    if (eggs.length < 3 && ants.length < MAX_ANTS) layEgg();
+  }
   for (const ant of ants){
     let target = null, arrive = 12;
 
@@ -140,7 +181,7 @@ Kit.loop((dt, t) => {
           puffs.push({ x: ant.x, y: ant.y - 10, e: '💧', age: 0 });
           Sound.squeak();
         }
-        goHome(ant);
+        leaveNest(ant, ant.job);
       }
     } else if (ant.route && ant.route.length){
       target = ant.route[0];
@@ -258,9 +299,12 @@ Kit.loop((dt, t) => {
       }
       if (!n) drawEmoji(ctx, '🍪', r.x, r.y, r.r * .58, 0, .28);
     } else if (R.id === 'nursery'){
-      for (let i = 0; i < 3; i++)
-        drawEmoji(ctx, '🥚', r.x - r.r * .40 + i * r.r * .40,
-          r.y + r.r * .40 + Math.sin(eggWob * 2 + i) * 2, r.r * .40);
+      for (const e of eggs){
+        const k = e.t / EGG_TIME;                   // the wobble builds as it ripens
+        const shake = Math.sin(eggWob * (3 + k * 16) + e.wob) * (1.2 + k * 3.4);
+        drawEmoji(ctx, '🥚', e.x + shake, e.y, r.r * (.38 + k * .10), shake * .04);
+      }
+      if (!eggs.length) drawEmoji(ctx, '🥚', r.x, r.y, r.r * .38, 0, .22);
     } else if (R.id === 'potty'){
       drawEmoji(ctx, '🚽', r.x, r.y + r.r * .22, r.r * .82);
     } else {
@@ -279,6 +323,12 @@ Kit.loop((dt, t) => {
   for (const c of crumbs) drawEmoji(ctx, '🍪', c.x, c.y, 14 + c.amount * 3);
   for (const p of puffs)
     drawEmoji(ctx, p.e, p.x, p.y - p.age * 22, 15, 0, Math.max(0, 1 - p.age / 1.4));
+
+  drawEmoji(ctx, '🐜', 26, 30, 22);
+  ctx.fillStyle = '#22331e';
+  ctx.font = '800 22px "Baloo 2", system-ui, sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(ants.length, 44, 31);
 
   for (const ant of ants){
     const wig = Math.sin(t * 14 + ant.wob) * 0.15;
