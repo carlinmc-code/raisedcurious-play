@@ -65,7 +65,10 @@ const list = [...urls].sort();
    which changes the stamp, and it never settles) and offline-manifest.js
    itself, which is generated and contains the version. */
 const TEXT = /\.(html|js|css|webmanifest|json|svg)$/i;
-const unstamp = t => t.replace(/(\/(?:sw|offline-manifest)\.js)\?v=[0-9a-f]*/g, '$1');
+/* Strip every stamp this script writes, whatever it is attached to. A
+   twelve-character hex version is only ever ours; the hand-written ones
+   like ?v=7 and ?v=0.19.0 are left alone and do count towards the hash. */
+const unstamp = t => t.replace(/\?v=[0-9a-f]{12}(?![0-9a-f])/g, '');
 const hash = crypto.createHash('sha1');
 for (const f of files){
   if (f === '/offline-manifest.js') continue;
@@ -101,12 +104,23 @@ function stamp(file, patterns){
   if (text !== before){ fs.writeFileSync(full, text); return true; }
   return false;
 }
-const SW = [/(\/sw\.js)(\?v=[0-9a-f]*)?/g];
-const MAN = [/(\/offline-manifest\.js)(\?v=[0-9a-f]*)?/g];
+const SW    = [/(\/sw\.js)(\?v=[0-9a-f]*)?/g];
+const MAN   = [/(\/offline-manifest\.js)(\?v=[0-9a-f]*)?/g];
+/* matter.min.js and the icons get the same treatment. Cloudflare will cache
+   the site's 200-fallback HTML against a path that does not exist yet, for
+   four hours, and it does not care that the file arrived in between - so any
+   NEW path is poisoned if anything requested it before the deploy landed.
+   That took out matter.js for six games, online as well as off. Stamping the
+   URL with the site version means every deploy lands somewhere unpoisoned. */
+const MATTER = [/(shared\/matter\.min\.js)(\?v=[^"'\s]*)?/g];
+const ICONS  = [/(\/assets\/icons\/[a-z0-9-]+\.png)(\?v=[0-9a-f]*)?/g];
 let stamped = 0;
 if (stamp('sw.js', MAN)) stamped++;
 for (const f of ['assets/toy.js', 'shared/kit.js', 'assets/common.js', 'index.html'])
   if (fs.existsSync(path.join(ROOT, f)) && stamp(f, SW)) stamped++;
+if (stamp('shared/kit.js', MATTER)) stamped++;
+for (const f of ['index.html', 'manifest.webmanifest'])
+  if (stamp(f, ICONS)) stamped++;
 
 console.log('offline-manifest.js  version ' + version + '  ' + list.length + ' urls  ' +
             (bytes / 1024).toFixed(0) + ' KB' + (stamped ? '  (stamped ' + stamped + ' files)' : ''));

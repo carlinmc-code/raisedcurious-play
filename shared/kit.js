@@ -152,7 +152,7 @@ const Kit = {
     return new Promise((res, rej) => {
       if (window.Matter) return res(window.Matter);
       const s = document.createElement('script');
-      s.src = '../shared/matter.min.js?v=0.19.0';
+      s.src = '../shared/matter.min.js?v=6db832acd82b';
       s.onload = () => res(window.Matter);
       s.onerror = () => rej(new Error('matter.js failed to load'));
       document.head.appendChild(s);
@@ -253,4 +253,4 @@ const Sound = {
 /* Offline. Registering from here as well as the hub means a child who
    opens a game directly still gets the site saved on their device. */
 if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0)
-  navigator.serviceWorker.register('/sw.js?v=ad26f406370d').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=6db832acd82b').catch(function(){});

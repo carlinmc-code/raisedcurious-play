@@ -342,4 +342,4 @@ export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 /* Offline. Registering from here as well as the hub means a child who
    opens a game directly still gets the site saved on their device. */
 if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0)
-  navigator.serviceWorker.register('/sw.js?v=ad26f406370d').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=6db832acd82b').catch(function(){});
