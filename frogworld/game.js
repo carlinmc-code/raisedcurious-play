@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=e18d652ba5d1';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=164767d5580e';
 import { SPECIES, HABITATS } from './data.js?v=1';
 
 /* Frog World.

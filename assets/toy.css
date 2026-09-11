@@ -105,3 +105,12 @@ body.has-tray .toy-go{bottom:calc(110px + env(safe-area-inset-bottom))}
 .tbl-pad button:active{background:var(--cream-dark)}
 .tbl-offline{text-align:center;font-size:17px;line-height:1.6;padding:18px 6px;color:var(--ink)}
 .tbl-big[disabled]{background:var(--rule);color:var(--ink-light);cursor:default}
+
+/* Inside a home-screen app there is no browser chrome, so the toolbar has to
+   clear the notch itself and the tray has to clear the home indicator. */
+@media (display-mode: standalone){
+  .toy-bar{padding-top:max(14px,env(safe-area-inset-top))}
+  .toy-tray{padding-bottom:max(16px,env(safe-area-inset-bottom))}
+  .toy-go{bottom:calc(18px + max(0px,env(safe-area-inset-bottom)))}
+  body.has-tray .toy-go{bottom:calc(110px + max(0px,env(safe-area-inset-bottom)))}
+}

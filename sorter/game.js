@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=e18d652ba5d1';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=164767d5580e';
 /* Drag a ball into the matching bin. A match is celebrated; a mismatch just
    floats gently home. Nothing is ever lost and there is no timer, so a two
    year old can sit in it. Refills itself forever. */
