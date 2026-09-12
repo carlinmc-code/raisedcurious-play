@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=164767d5580e';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=37e5595f5180';
 /* A falling-material sandbox. Coarse cell grid: each cell is empty, wall or a
    grain. Water spreads sideways, sand piles, beads bounce a little. Tilt a cup
    by dragging it. The visual response is the whole game. */

@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=164767d5580e';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=37e5595f5180';
 /* A pegboard. Tap anywhere along the top and something falls, pinging off
    pegs into one of the bins. Over time the bins fill up and the middle ones
    fill fastest, which is the quiet point of the whole thing. */

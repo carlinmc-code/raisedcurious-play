@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=164767d5580e';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=37e5595f5180';
 /* Peekaboo House, as a matching game.
    Every animal is hiding behind two doors. Open one, open another, and if
    they match both stay open for good. If they do not, the doors swing shut

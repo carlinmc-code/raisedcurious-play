@@ -13,7 +13,7 @@
    assets are versioned in their URLs already; and the cache is named after a
    hash of the whole site, so a deploy quietly abandons the previous one. */
 
-importScripts('/offline-manifest.js?v=164767d5580e');
+importScripts('/offline-manifest.js?v=37e5595f5180');
 
 const VERSION = self.OFFLINE.version;
 const CACHE = 'rc-play-' + VERSION;
@@ -33,10 +33,45 @@ self.addEventListener('install', e => {
   })());
 });
 
+/* Carry the download across a deploy.
+   The cache is named after a hash of the whole site, so a deploy makes a new
+   one - and simply deleting the old one threw away the plane-mode download
+   every single time anything shipped. Somebody who saved all forty-one games
+   on Tuesday and boarded on Thursday would have had the shell and nothing
+   else, silently. Almost nothing changes between deploys, so the old entries
+   the new build still wants are copied over first, and whatever is genuinely
+   new is topped up in the background while there is still a network. */
 self.addEventListener('activate', e => {
   e.waitUntil((async () => {
-    for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k);
+    const fresh = await caches.open(CACHE);
+    const want = new Set(URLS.map(u => new URL(u, self.location.origin).href));
+    const stale = (await caches.keys()).filter(k => k !== CACHE && k.indexOf('rc-play-') === 0);
+
+    let carried = 0;
+    for (const name of stale){
+      const old = await caches.open(name);
+      for (const req of await old.keys()){
+        if (!want.has(req.url)) continue;
+        if (await fresh.match(req)) continue;
+        const res = await old.match(req);
+        if (res){ await fresh.put(req, res); carried++; }
+      }
+    }
+    for (const name of stale) await caches.delete(name);
     await self.clients.claim();
+
+    /* If they had clearly downloaded the site before, finish the job rather
+       than leaving them a bundle with holes in it and no way to know. */
+    if (carried > URLS.length * 0.6){
+      const have = new Set((await fresh.keys()).map(r => r.url));
+      const missing = URLS.filter(u => !have.has(new URL(u, self.location.origin).href));
+      for (const u of missing){
+        try {
+          const res = await fetch(new Request(u, { cache: 'reload' }));
+          if (res && res.ok) await fresh.put(u, res.clone());
+        } catch (err){ /* offline right now: the button will finish it later */ }
+      }
+    }
   })());
 });
 

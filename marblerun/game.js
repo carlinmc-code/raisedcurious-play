@@ -1,4 +1,4 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=164767d5580e';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=37e5595f5180';
 
 /* Marble Run.
    Grid of one-cell pieces. Each piece owns a path from an entry port to an

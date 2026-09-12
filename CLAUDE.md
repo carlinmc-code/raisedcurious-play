@@ -62,6 +62,12 @@ and all 41 games run with no network.
   and are DELIBERATELY excluded from the offline bundle: they weigh as much as
   the entire rest of the site, and precaching them would double the plane-mode
   download to remove a white flash. scripts/precache.js has the exclusion.
+- A DEPLOY MUST NOT WIPE THE OFFLINE DOWNLOAD. The cache is named after the
+  site hash, so every deploy makes a new one; activate carries over every entry
+  the new build still wants before deleting the old cache, and tops up the rest
+  in the background if the device clearly had the whole site saved. Deleting the
+  old cache outright - which it used to do - silently emptied the plane-mode
+  download on every single deploy. tests/offline.mjs holds this to account.
 - Regenerate icons and launch images with `node scripts/icons.js`, then paste
   assets/icons/startup-links.html into the hub <head> if the device list changed.
 - Do NOT wrap this in a native app. Every route (Ad Hoc, TestFlight, sideload)
@@ -82,6 +88,8 @@ and all 41 games run with no network.
 - node scripts/checkversions.js  (belt and braces: every page must ask for the
   SAME version of a shared file)
 - node tests/install.mjs      (who the iOS install hint is shown to)
+- node tests/offline.mjs      (the worker: freshness, offline, and that a
+  deploy does not discard a saved download)
 - Every game gets a wordless first-run finger guide: kit games call Kit.guide([...])
   right after Kit.init, toy games pass `coach:` to boot(). Steps are fractions of
   the play area, so they hold at any screen size. A new game without one is a bug.

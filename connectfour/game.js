@@ -1,5 +1,5 @@
-import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=164767d5580e';
-import { createTable, joinSheet, codeFromUrl, online } from '../assets/table.js?v=164767d5580e';
+import { boot, Sound, settings, rand, pick, clamp } from '../assets/toy.js?v=37e5595f5180';
+import { createTable, joinSheet, codeFromUrl, online } from '../assets/table.js?v=37e5595f5180';
 import { COLS, ROWS, empty, at, drop, winLine, isFull, other, canDrop, robotColumn } from './rules.js?v=1';
 
 /* Four in a Row.
